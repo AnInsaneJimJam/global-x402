@@ -71,6 +71,14 @@ test('order placed before funding or after the deadline fails', async () => {
   assert.ok(failed(await verify(late)).includes('PLACED_BEFORE_DEADLINE'));
 });
 
+test('duplicated security headers are rejected (forged unsigned Date prepended to an old genuine email)', async () => {
+  const old = await sign(orderEmail({ date: 'Wed, 07 Oct 2026 08:00:00 +0000' }), key.privateKey);
+  const forged = Buffer.concat([Buffer.from('Date: Wed, 07 Oct 2026 10:00:00 +0000\r\n'), old]);
+  const result = await verify(forged);
+  assert.equal(result.verdict, 'FAIL');
+  assert.ok(failed(result).includes('DKIM_SIGNATURE'));
+});
+
 test('missing key or DNS outage is INCONCLUSIVE, never PASS', async () => {
   const raw = await sign(orderEmail(), key.privateKey);
   assert.equal((await verify(raw, { resolveDkimKey: async () => null })).verdict, 'INCONCLUSIVE');

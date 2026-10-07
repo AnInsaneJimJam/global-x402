@@ -39,7 +39,13 @@ export async function verifyOrderEmail(i: {
   const valid = ours.find(r => r.status.result === 'pass' && !r.canonBodyLengthLimited &&
     SIGNED_HEADERS.every(header => (r.signingHeaders?.keys ?? '').toLowerCase().split(/[:\s]+/).includes(header)));
   const transient = ours.some(r => r.status.result === 'temperror' || r.status.comment === 'no key');
-  const dkimResult = valid && fromDomain && allowed.has(fromDomain) ? 'PASS' : !valid && transient ? 'UNKNOWN' : 'FAIL';
+  // DKIM covers the last copy of a header while the MIME parser may read the first, so an unsigned
+  // duplicate (e.g. a forged Date on an old genuine email) must not survive.
+  const count = (name: string) => dkim.headers?.parsed.filter(h => h.key === name).length ?? 0;
+  const singleHeaders = SIGNED_HEADERS.every(name => count(name) === 1) &&
+    ['content-type', 'content-transfer-encoding'].every(name => count(name) <= 1);
+  const dkimResult = valid && singleHeaders && fromDomain && allowed.has(fromDomain) ? 'PASS' :
+    !valid && transient ? 'UNKNOWN' : 'FAIL';
 
   const mail = await simpleParser(raw);
   const text = mail.text ?? '';
