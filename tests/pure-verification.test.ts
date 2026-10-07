@@ -31,6 +31,13 @@ test('pure DKIM: duplicated or unsigned security headers are refused', async () 
   assert.equal(textPart(Buffer.concat([Buffer.from('Content-Type: text/html\r\n'), good])), '');
 });
 
+test('pure DKIM: From must be the merchant domain and the header block must be clean', async () => {
+  const forged = await sign(orderEmail({ from: 'orders@evil.example' }), key.privateKey);
+  assert.equal((await verifyDkim(forged, ['shop.example'], resolve)).result, 'fail');
+  const good = await sign(orderEmail(), key.privateKey);
+  assert.equal((await verifyDkim(Buffer.concat([Buffer.from('X-Note: a\rDate: x\r\n'), good]), ['shop.example'], resolve)).result, 'fail');
+});
+
 test('pure text extraction feeds the Amazon.in parser', () => {
   const body = ['GOB-7F3K – DEMO CITY, DEMO STATE', 'Order #', '403-1234567-7654321', '* Coca-Cola Original 330ml', 'Quantity: 1', 'Total', '50 INR'].join('\r\n');
   const raw = Buffer.from(['From: a@amazon.in', 'Subject: s', 'Date: Wed, 07 Oct 2026 10:00:00 +0000', 'MIME-Version: 1.0',

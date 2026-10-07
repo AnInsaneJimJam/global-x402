@@ -132,6 +132,14 @@ export async function verifyDkim(raw: Uint8Array, allowed: readonly string[],
   resolveKey: (domain: string, selector: string) => Promise<string | null>): Promise<DkimOutcome> {
   const { headers, body } = splitMessage(raw);
   let outcome: DkimOutcome = { result: 'fail', domain: null, reason: 'no signature from an allowed domain', signedHeaders: [] };
+  // Same guards as the local verifier: clean header block, and the From address must be the merchant's domain.
+  const text = latin1(raw), cut = text.search(/\r?\n\r?\n/), head = cut === -1 ? text : text.slice(0, cut);
+  if (/\r(?!\n)/.test(head) || !head.split(/\r?\n/).every(line => /^[\x21-\x39\x3b-\x7e \t]/.test(line))) {
+    return { ...outcome, reason: 'malformed header block' };
+  }
+  const from = headers.filter(h => h.name === 'from');
+  const fromDomain = from.length === 1 ? (/@([A-Za-z0-9.-]+)>?\s*$/.exec(from[0]!.raw.replace(/\r\n/g, ' ').trim())?.[1] ?? '').toLowerCase() : '';
+  if (!allowed.includes(fromDomain)) return { ...outcome, reason: 'From address is not the merchant domain' };
   for (const sig of headers.filter(h => h.name === 'dkim-signature')) {
     const t = tags(sig.raw.slice(sig.raw.indexOf(':') + 1));
     const domain = (t.d ?? '').toLowerCase();
