@@ -1,56 +1,132 @@
-# Global Order Book
+<!-- Banner goes here -->
 
-A buyer's AI agent gets a real Web2 purchase made by a **filler** who pays with their own card and is paid from **Masumi escrow on Cardano** once the merchant's **DKIM-signed confirmation email** proves the order was placed.
+# eX-402
 
-**Status:** end to end in code — buyer agent, filler agent (human-assisted checkout), native Masumi escrow adapter with chain observer, DKIM proof for Amazon.in, manual review, refunds, and a dashboard. 50 automated tests including a two-agent flow against a scripted escrow. The live Preprod run (node setup + wallet funding) is the remaining step; see the recording runbook.
+x402 works well when the thing your agent wants to pay for already accepts crypto. Most of the world doesn't. You can't pay Amazon.in, your local pharmacy or a train booking site with a stablecoin, so an AI agent hits a wall the moment a task needs a real-world purchase.
 
-| Want to… | Go to |
-|---|---|
-| Record the demo / run it live on Preprod | [docs/DEMO.md](docs/DEMO.md) |
-| See the dashboard with mock data | `npm run preview` → `http://127.0.0.1:3100/#token=preview-buyer&persona=buyer` |
-| Run the agents | `npm run buyer -- <purchase.json>`, `npm run filler` (with `npm run dev` + `npm run worker`) |
-| Set up the Masumi node | [infra/masumi/README.md](infra/masumi/README.md), then `npm run masumi:setup` |
-| Understand the design | [docs/00-decisions.md](docs/00-decisions.md) → [07](docs/07-agent-system.md) → [01](docs/01-product-spec.md) → [02](docs/02-architecture.md) |
+eX-402 is a way around that wall. It's a global order book where your AI agent posts what it needs bought, and a person on the other side (a **filler**) buys it with their own card and gets paid in stablecoins from escrow. The agent gets the item without anyone handing it a credit card. The filler gets an easy fiat-to-crypto on-ramp and earns a margin on every order.
 
-**Earlier two-person split:** [docs/handoff/README.md](docs/handoff/README.md) — Track A (settlement) and Track B (evidence/filler), shared contract and status logs.
+Two pieces make this trustworthy:
 
-**Earlier handoff:** the [implementation handoff](docs/HANDOFF.md) describes the code before the split. It links the authoritative design documents, current code, verification evidence and next integration gates.
+- **Masumi escrow** on Cardano holds the buyer's payment until the job is proven done.
+- **Chainlink CRE** checks the proof. The filler uploads the merchant's order-confirmation email, and a CRE workflow verifies its DKIM signature and that it matches the order (item, price, delivery address, timing). It runs as a confidential workflow, so the buyer's address never leaves the enclave.
 
-Prepared 7 October 2026. The repository contains the planning pack and an initial TypeScript/PostgreSQL implementation. The original diagram is preserved at [docs/assets/original-architecture.png](docs/assets/original-architecture.png).
+## How it works
 
-**Implementation authorized:** the user requested Cardano skill installation and implementation on 7 October 2026, superseding the earlier documentation-only boundary. The first slice implements typed command preparation/commitment, transactional claims, purchase registration, actor-local restart recovery, deterministic opportunity ranking, and a local API/reference client. See [the runbook](docs/08-development.md) and [integration manifest](docs/integration-manifest.md) for exact scope and remaining gates. All external effects in the runnable fixture are MOCK; no actual escrow, purchase or CRE verification is claimed.
+1. **You ask your agent.** "Order me a USB-C cable from Amazon.in." Your Claude agent checks its spending policy and posts the order to the book.
+2. **A filler picks it up.** Fillers browse open orders on the dashboard, filter by the rate they're happy with (₹ per tUSDM), and claim the one that fits.
+3. **Your agent funds the escrow.** Once claimed, the agent locks the payout in Masumi escrow using your wallet. The filler only sees your delivery address after the money is locked.
+4. **The filler buys it.** They check out on Amazon.in with their own card and ship it to you. The delivery name starts with a short order code, which ties this purchase to this order.
+5. **The proof is checked.** The filler uploads Amazon's confirmation email. CRE verifies it's genuinely from Amazon and matches the order, in 12 checks.
+6. **Everyone settles.** If the proof passes, the escrow pays the filler after a short dispute window. If it fails or never arrives, the buyer gets refunded.
 
-Global Order Book lets a buyer's AI agent commission a Web2 purchase, reserve payment in Cardano escrow, and pay a filler who purchases using their own fiat. The filler earns an explicitly quoted reward. Verification connects the merchant's evidence to the escrow lifecycle.
+## Architecture
 
-**Selected flow (A):** buyer posts intent → filler agent accepts → buyer agent funds escrow naming that filler → filler agent purchases → verify order placement → settle under the contract's rules. The platform coordinates the order without first collecting the escrow proceeds. A tested refund/recovery path for a filler who never places the order is required.
+![Architecture](docs/assets/architecture.png)
 
-**Agent interaction:** bounded goal → accepted commitment → owned obligations → prepared action → observed effect → reconciled outcome. Agents inspect a shared control view and execute typed commands; actor-local deterministic runners handle waiting and recovery while wallets and checkout credentials stay with their respective actors. The same domain model powers the dashboard. See [the agent-system design](docs/07-agent-system.md).
+| Part | Where | What it does |
+|---|---|---|
+| Order book API | `apps/api` | Orders, claims, proof uploads and a shared control view for each order (Fastify + Postgres) |
+| Worker | `apps/worker` | Creates escrow terms, watches the chain, triggers CRE, submits results to escrow |
+| Filler dashboard | `apps/web` | Live order book, rate filter, claim, ship-to details, proof upload, verification and payout timeline |
+| Buyer agent | `examples/buyer-agent` | An MCP server for Claude Code, plus the `order-for-me` skill |
+| CRE workflow | `workflows/cre-verify` | Confidential workflow that verifies the order email |
+| Verifier | `packages/verification` | Dependency-free DKIM and order checks, shared by the worker and CRE |
+| Escrow adapter | `packages/settlement` | Talks to a Masumi payment node (Cardano Preprod) |
 
-The confirmed goal is a hackathon MVP with **both buyer and filler agents acting autonomously**: the buyer requests a purchase, while the filler requests a favorable stablecoin acquisition opportunity. Test tokens are acceptable before a later real stablecoin integration. The first slice proposes one item, one familiar merchant/platform, one currency, and one filler per order. **Order-placement verification is the confirmed MVP completion condition.** Delivery failures after payout are outside MVP protection; delivery verification is a longer-term target. A custom demo merchant is a last resort.
+## What's real and what's testnet
 
-## Reading paths
+This runs end to end today, with a few honest caveats:
 
-For the overall design, read **00 → 07 → 01 → 02**. For implementation, then read **04 → 05 → 06**, and read **03** before working on evidence, verification, refunds or settlement. Load research only for the corresponding external integration. Each document owns one part of the contract; references connect them without requiring every caller to reload the entire pack.
+- **Real:** the Amazon.in purchase, the filler's ₹ payment, Amazon's signed email, and the DKIM verification.
+- **Testnet:** escrow runs on Cardano Preprod with test tUSDM, so the filler is paid in test tokens.
+- **Simulated:** the CRE workflow runs in the local CRE simulator. Deploying a confidential workflow to Chainlink's network needs their private beta.
+- **Not yet:** wallet login (the dashboard uses dev tokens) and delivery confirmation. We prove the order was placed, not that it arrived.
 
-1. [Decisions and readiness](docs/00-decisions.md): open product choices, protocol gates, and what can be implemented now.
-2. [Product specification](docs/01-product-spec.md): roles, workflow, economics, screens, and scope.
-3. [Architecture](docs/02-architecture.md): components, trust boundaries, escrow alternatives, and lifecycle.
-4. [Proof and settlement](docs/03-proof-and-settlement.md): evidence policy, CRE's role, disputes, and security.
-5. [API and data contracts](docs/04-api-and-data.md): proposed application interfaces and persistence model.
-6. [Implementation plan](docs/05-implementation-plan.md): ordered milestones with acceptance criteria.
-7. [Tests and demo](docs/06-tests-and-demo.md): observable correctness and demo requirements.
-8. [Masumi/x402 research](docs/research/masumi-x402.md) and [CRE/proof research](docs/research/cre-proof.md): primary-source findings and integration limitations.
-9. [Merchant options](docs/research/merchant-options.md): familiar platforms, access prerequisites, and autonomous checkout/evidence feasibility.
-10. [Agent interaction system](docs/07-agent-system.md): goals, control views, authority, durable operations, monitoring, resource use and reusable integration knowledge.
+## Running it locally
 
-## Instructions for the implementing agent
+You'll need:
 
-Follow the reading paths above. Resolve the remaining `DECISION REQUIRED` items with the founder before implementing their dependent money flows. Complete the integration spikes before treating a diagram or adapter interface as proof that an external protocol supports it. Use document 04's IntegrationIdentity as the source for protocol/network/execution labels; display LIVE TESTNET, LOCAL SIMULATION, MANUAL or MOCK only as accurate summaries of the corresponding layer.
+- Node 22+ and npm
+- PostgreSQL 16 (local binaries are fine)
+- Docker, for the Masumi payment node
+- [Bun](https://bun.sh) and the [CRE CLI](https://docs.chain.link/cre), logged in with `cre login`
+- [Claude Code](https://claude.com/claude-code), for the buyer agent
+- A Blockfrost Preprod API key
 
-Use the application API definitions as proposed interfaces owned by this project. Use the pinned upstream specifications for x402, Masumi, and CRE wire formats; application examples are not replacements for those standards. Record selected upstream versions, addresses, networks, and tested transaction traces.
+### 1. Install and configure
 
-For project behavior, document 00 owns decisions, 01 owns product scope/economics, 02 owns architecture/state, 03 owns proof policy, 04 owns API/data contracts, 05 owns implementation sequencing, 06 owns acceptance criteria, and 07 owns the agent interaction model. Research notes are supporting analysis, not competing schemas. In particular, use document 03's `PASS` / `FAIL` / `INCONCLUSIVE` verdict vocabulary rather than alternative names in research examples. Resolve any upstream contradiction through an integration test and update the affected specification.
+```sh
+npm install
+cp .env.example .env    # fill in DATABASE_URL, dev tokens and CRE_VERIFIER_TOKEN
+npm run db:migrate
+```
 
-Preserve the distinction between order placement, delivery, verification, result submission, and final settlement. A receipt hash binds bytes; it does not establish that goods were bought or delivered. A successful x402 funding response does not establish that escrow has paid the filler.
+### 2. Start a Masumi node and wire it up
 
-Start with the prerequisite checks and protocol spikes in document 05. Do not present this pack as fully implementation-ready until document 00's decision table and readiness checklist are resolved.
+Follow [infra/masumi/README.md](infra/masumi/README.md) to start the node and create its wallets. Then fund them:
+
+- test ADA for both wallets from the [Cardano faucet](https://docs.cardano.org/cardano-testnets/tools/faucet);
+- test USDM for the buyer wallet from the [Masumi dispenser](https://dispenser.masumi.network).
+
+Then let the app set itself up against the node:
+
+```sh
+npm run masumi:setup    # API keys, filler agent registration, writes the Masumi settings into .env
+```
+
+### 3. Set up the CRE workflow
+
+```sh
+cd workflows/cre-verify/verify-order && bun install && cd -
+```
+
+Set `VERIFIER=CRE` in `.env` so the worker verifies proofs through the CRE workflow instead of locally.
+
+### 4. Run it
+
+```sh
+npm run build:web    # build the dashboard
+npm run dev          # API + dashboard on http://127.0.0.1:3000
+npm run worker       # escrow, chain watching, CRE verification
+```
+
+Open http://127.0.0.1:3000, hit **Launch app**, and connect as a filler with `DEV_FILLER_TOKEN` from your `.env`.
+
+### 5. Give your Claude agent a wallet
+
+Copy `examples/buyer-agent/profile.example.json` to `profile.json` and fill in your delivery address and spending limit. Then register the buyer tools and the skill with Claude Code:
+
+```sh
+claude mcp add global-order-book-buyer --scope user \
+  -e GOB_API=http://127.0.0.1:3000 \
+  -e GOB_BUYER_TOKEN=<DEV_BUYER_TOKEN> \
+  -e BUYER_PROFILE=$PWD/examples/buyer-agent/profile.json \
+  -- $PWD/scripts/buyer-mcp.sh
+
+cp -R examples/buyer-agent/skill/order-for-me ~/.claude/skills/
+```
+
+Start a new Claude Code session and just ask: *"order me <exact Amazon.in product title>, ₹<total including delivery>"*. The agent confirms with you, posts the order, funds the escrow when a filler claims it, and keeps you posted until the filler is paid.
+
+### Tests
+
+```sh
+npm test         # spins up a throwaway Postgres and runs the suite
+npm run typecheck
+```
+
+## Recording a demo
+
+[docs/DEMO.md](docs/DEMO.md) has the full shot list, timings and troubleshooting. Timings, counted from when the filler claims:
+
+- **5–12 min:** the escrow lock confirms. Only buy after this.
+- **Within 35 min:** upload the email.
+- **About 70 min:** the payout lands.
+
+## Further reading
+
+- [Product spec](docs/01-product-spec.md) and [architecture](docs/02-architecture.md)
+- [Proof and settlement](docs/03-proof-and-settlement.md)
+- [How the agents work](docs/07-agent-system.md)
+- [CRE workflow](workflows/cre-verify/verify-order/README.md)
