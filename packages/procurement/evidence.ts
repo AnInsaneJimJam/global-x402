@@ -8,6 +8,7 @@ import type { Store } from './store.js';
 // Track B: private recipient storage, evidence files, and the verification slice of the control view.
 function fail(code: string, status = 409): never { throw new DomainError(code, status); }
 const MAX_EVIDENCE_BYTES = 1024 * 1024;
+const MAX_UPLOADS_PER_ORDER = 5;
 export const evidenceDir = () => process.env.EVIDENCE_DIR ?? '.evidence';
 
 // What gets written on-chain as the result: binds the verdict to this exact assignment and evidence.
@@ -25,12 +26,10 @@ async function load(store: Store, orderId: string): Promise<Order> {
 export async function putRecipient(store: Store, actor: Actor, ref: string, input: unknown) {
   if (actor.role !== 'BUYER') fail('ROLE_FORBIDDEN', 403);
   const data = recipientSchema.parse(input);
-  const row = await store.pool.query<{ buyer_id: string; data: Recipient }>(
-    `INSERT INTO gob_recipients(ref,buyer_id,data) VALUES ($1,$2,$3)
-     ON CONFLICT (ref) DO UPDATE SET ref=EXCLUDED.ref RETURNING buyer_id,data`, [id.parse(ref), actor.id, data]);
-  const stored = row.rows[0]!;
-  if (stored.buyer_id !== actor.id) fail('NOT_FOUND', 404);
-  if (hash(stored.data) !== hash(data)) fail('RECIPIENT_IMMUTABLE');
+  const row = await store.pool.query<{ data: Recipient }>(
+    `INSERT INTO gob_recipients(buyer_id,ref,data) VALUES ($1,$2,$3)
+     ON CONFLICT (buyer_id,ref) DO UPDATE SET ref=EXCLUDED.ref RETURNING data`, [actor.id, id.parse(ref), data]);
+  if (hash(row.rows[0]!.data) !== hash(data)) fail('RECIPIENT_IMMUTABLE');
   return { ref, stored: true };
 }
 
@@ -59,6 +58,12 @@ export async function storeEvidence(store: Store, actor: Actor, orderId: string,
   const order = await load(store, orderId);
   if (actor.role !== 'FILLER' || actor.id !== order.fillerId) fail('NOT_FOUND', 404);
   if (order.funding !== 'CONFIRMED') fail('FUNDING_NOT_CONFIRMED');
+  // Uploads only between a reported placement and a final decision, and at most a few per order.
+  if (order.purchase?.state !== 'ORDERED') fail('PURCHASE_NOT_ORDERED');
+  if (order.verification?.verdict === 'PASS' || order.verification?.execution === 'MANUAL') fail('EVIDENCE_FINAL');
+  // ponytail: count-then-insert can overshoot by one under concurrent uploads; fine for a per-order cap.
+  const uploads = await store.pool.query<{ n: number }>('SELECT count(*)::int AS n FROM gob_evidence_files WHERE order_id=$1', [order.id]);
+  if ((uploads.rows[0]?.n ?? 0) >= MAX_UPLOADS_PER_ORDER) fail('EVIDENCE_LIMIT', 429);
   if (bytes.length === 0 || bytes.length > MAX_EVIDENCE_BYTES) fail('EVIDENCE_SIZE', 413);
   if (!/^[\x21-\x39\x3b-\x7e]+:/.test(bytes.subarray(0, 200).toString('latin1'))) fail('EVIDENCE_NOT_EMAIL', 415);
   const sha256 = createHash('sha256').update(bytes).digest('hex');

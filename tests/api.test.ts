@@ -30,6 +30,10 @@ test('HTTP uses the shared handlers, rejects untyped commands, and advertises mo
     assert.equal(eml.json().error.code, 'FUNDING_NOT_CONFIRMED');
     const json = await app.inject({ method: 'POST', url: `/v1/orders/${orderId}/evidence-uploads`, headers: asFiller, payload: { a: 1 } });
     assert.equal(json.statusCode, 415);
+    // The 1 MB raw-email parser is scoped to the upload route only.
+    const elsewhere = await app.inject({ method: 'POST', url: '/v1/action-plans',
+      headers: { ...asFiller, 'content-type': 'message/rfc822' }, payload: 'Subject: x\r\n\r\nbody' });
+    assert.equal(elsewhere.statusCode, 415);
     const malicious = await app.inject({ method: 'POST', url: '/v1/action-plans', headers: { authorization: 'Bearer fixture-filler' }, payload: { command: 'run_shell', input: 'send money' } });
     assert.equal(malicious.statusCode, 400);
     assert.equal(malicious.json().error.code, 'INVALID_INPUT');

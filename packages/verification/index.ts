@@ -5,6 +5,8 @@ import type { ExtractedOrder, MerchantConfig } from '../merchants/index.js';
 
 export type ExpectedOrder = {
   orderId: string; claimId: string; termsHash: string; nonce: string; merchantId: string;
+  // Buyer's stored recipient: full ship-to name (incl. nonce), city and optional state/region.
+  recipientName: string; recipientCity: string; recipientRegion?: string;
   itemMatch: string; quantity: number; totalMinor: string; currency: string;
   fundedAt: string; purchaseDeadline: string;
   // Filler-declared order id; when given, the email's own order id must equal it (uniqueness is bound to it).
@@ -26,6 +28,7 @@ function headerBlock(raw: Buffer) {
   return end === -1 ? text : text.slice(0, end);
 }
 const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+const hasToken = (text: string, token: string) => normalize(text).split(' ').includes(normalize(token));
 function noKey(): never { throw Object.assign(new Error('no key'), { code: 'ENOTFOUND' }); }
 
 // Pure check of an order-confirmation email against the accepted order. No signing authority,
@@ -66,7 +69,7 @@ export async function verifyOrderEmail(i: {
     !valid && transient ? 'UNKNOWN' : 'FAIL';
 
   const text = mail.text ?? '';
-  let facts: ExtractedOrder = { merchantOrderId: null, items: [], recipientName: null, total: null };
+  let facts: ExtractedOrder = { merchantOrderId: null, items: [], recipientName: null, recipientCity: null, recipientRegion: null, total: null };
   try { facts = i.merchant.extract(text); } catch { /* unrecognised layout leaves facts UNKNOWN */ }
   // Date comes from the same parsed header row the signature covers, not from the second parser.
   const dateLine = authHeaders.find(h => h.key === 'date')?.line.toString('latin1');
@@ -75,6 +78,8 @@ export async function verifyOrderEmail(i: {
   const e = i.expected;
   const check = (id: string, expected: string, observed: string | null, ok: boolean): Criterion =>
     ({ id, expected, observed, result: observed === null ? 'UNKNOWN' : ok ? 'PASS' : 'FAIL' });
+  const same = (id: string, expected: string, observed: string | null) =>
+    check(id, expected, expected ? observed : null, !!expected && observed !== null && normalize(observed) === normalize(expected));
   const total = facts.total ? `${facts.total.currency} ${facts.total.minor}` : null;
   const item = facts.items.length === 1 ? facts.items[0]! : null;
   const criteria: Criterion[] = [
@@ -82,9 +87,13 @@ export async function verifyOrderEmail(i: {
     { id: 'DKIM_SIGNATURE', expected: [...allowed].join('|'), result: dkimResult,
       observed: valid?.signingDomain ?? (ours[0] ? `${ours[0].signingDomain}: ${ours[0].status.result}` : 'no merchant signature') },
     // The nonce binds the delivery recipient, so it must be in the merchant's ship-to name.
-    // An empty expected nonce would match any name, so it can never pass.
-    check('NONCE', e.nonce, facts.recipientName === null || !e.nonce ? null : facts.recipientName.includes(e.nonce) ? e.nonce : 'absent',
-      !!e.nonce && !!facts.recipientName?.includes(e.nonce)),
+    // The nonce ties the order to this assignment, but the filler knows it, so the ship-to must also match
+    // the buyer's stored recipient as far as the merchant email shows it. Empty expectations never pass.
+    check('NONCE', e.nonce, facts.recipientName === null || !e.nonce ? null : hasToken(facts.recipientName, e.nonce) ? e.nonce : 'absent',
+      !!e.nonce && !!facts.recipientName && hasToken(facts.recipientName, e.nonce)),
+    same('RECIPIENT_NAME', e.recipientName, facts.recipientName),
+    same('RECIPIENT_CITY', e.recipientCity, facts.recipientCity),
+    ...(e.recipientRegion ? [same('RECIPIENT_REGION', e.recipientRegion, facts.recipientRegion)] : []),
     // Exactly one purchased line, and it must be the accepted item exactly (no substring: "X (Pack of 24)" ≠ "X").
     check('ITEM', e.itemMatch, item ? item.name : facts.items.length ? `${facts.items.length} item lines` : null,
       !!item && normalize(item.name) === normalize(e.itemMatch)),

@@ -16,6 +16,7 @@ const text = (lines: Partial<{ item: string; extra: string; shipTo: string; tota
   'Total', lines.total ?? '50 INR', '', '', '©2026 Amazon.com, Inc. or its affiliates. All rights reserved.', '', 'Amazon.in',
 ].join('\n');
 const expected = { orderId: 'o', claimId: 'c', termsHash: 'a'.repeat(64), nonce: 'GOB-7F3K', merchantId: 'amazon-in',
+  recipientName: 'Alice Doe GOB-7F3K', recipientCity: 'Demo City', recipientRegion: 'Demo State',
   itemMatch: ITEM, quantity: 1, totalMinor: '5000', currency: 'INR',
   fundedAt: '2026-10-07T09:00:00Z', purchaseDeadline: '2026-10-07T12:00:00Z' };
 const message = (body = text()) => ['From: "Amazon.in" <order-update@amazon.in>', 'To: filler@example.net',
@@ -28,8 +29,21 @@ test('extracts order id, single item, ship-to name and total from Amazon.in layo
     merchantOrderId: '403-1234567-7654321',
     items: [{ name: ITEM, quantity: 1 }],
     recipientName: 'Alice Doe GOB-7F3K',
+    recipientCity: 'DEMO CITY',
+    recipientRegion: 'DEMO STATE',
     total: { currency: 'INR', minor: '5000' },
   });
+});
+
+test('nonce in the name does not help if the order ships elsewhere or the name differs', async () => {
+  const key = testKey();
+  const run = (shipTo: string) => sign(message(text({ shipTo })), key.privateKey, { signingDomain: 'amazon.in' })
+    .then(raw => verifyOrderEmail({ raw, expected, merchant: amazonIn, resolveDkimKey: async () => key.record,
+      now: new Date('2026-10-07T10:05:00Z') }));
+  const failed = async (shipTo: string) => (await run(shipTo)).criteria.filter(c => c.result === 'FAIL').map(c => c.id);
+  assert.deepEqual(await failed('Alice Doe GOB-7F3K – OTHER CITY, DEMO STATE'), ['RECIPIENT_CITY']);
+  assert.deepEqual(await failed('Mallory GOB-7F3K – DEMO CITY, DEMO STATE'), ['RECIPIENT_NAME']);
+  assert.ok((await failed('Alice Doe GOB-7F3KX – DEMO CITY, DEMO STATE')).includes('NONCE'));
 });
 
 test('second item line is extracted so verification can reject it; ambiguous total is null', () => {

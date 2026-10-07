@@ -89,7 +89,19 @@ test('failed evidence goes to buyer review: approve queues submit_result, reject
     const after = await c.service.inspect(buyer, orderId);
     assert.equal(after.outcome.verification, decision === 'APPROVE' ? 'MANUAL_APPROVED' : 'MANUAL_REJECTED');
     assert.equal(await resultJobs(c, orderId), decision === 'APPROVE' ? 1 : 0);
+    // A buyer decision is final: the filler cannot reset it with new evidence.
+    await assert.rejects(storeEvidence(c.store, filler, orderId, Buffer.from('Subject: retry\r\n\r\nbody'), dir), code('EVIDENCE_FINAL'));
   }
+}));
+
+test('uploads need a reported placement and are capped per order', () => withContext(async (c, dir) => {
+  const plan = await c.service.prepare(buyer, { command: 'create_intent', input: { ...intent, clientOrderId: 'cap' } });
+  const orderId = (await c.service.act(buyer, plan.id, 'create-cap')).orderId;
+  await confirmFixtureFunding(c.store, orderId, await claim(c.service, orderId));
+  await assert.rejects(storeEvidence(c.store, filler, orderId, Buffer.from('Subject: x\r\n\r\nbody'), dir), code('PURCHASE_NOT_ORDERED'));
+  const { orderId: placed } = await fundedOrder(c, 'cap-2');
+  for (let n = 0; n < 5; n++) await storeEvidence(c.store, filler, placed, Buffer.from(`Subject: ${n}\r\n\r\nbody`), dir);
+  await assert.rejects(storeEvidence(c.store, filler, placed, Buffer.from('Subject: 6\r\n\r\nbody'), dir), code('EVIDENCE_LIMIT'));
 }));
 
 test('email for a different merchant order than declared fails', () => withContext(async (c, dir) => {

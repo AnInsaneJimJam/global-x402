@@ -37,6 +37,8 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 
 ## Session log
 
+- 2026-10-07 — Review fixes on PR #3 (see SHARED-CONTRACT changelog): per-buyer recipient refs, final manual decisions, upload cap/state gate, scoped rfc822 parser, 4xx error mapping, and ship-to name/city/state binding. **Residual risk:** same-city street diversion is invisible in Amazon.in emails (they show only city/state). 41/41 tests.
+
 - 2026-10-07 — Merged A0 into track-b. Built B3–B5 on it: nonce at claim, private recipients + funded-only assignment, .eml upload, submit_evidence → verify_evidence job → PASS enqueues submit_result, buyer manual review. Verifier: empty nonce never passes, missing funding time/deadline → UNKNOWN, email order id must equal declared id. 39/39 tests.
 
 - 2026-10-07 — Security review fixes: (1) duplicated From/Date/Subject (and Content-Type/CTE) headers now FAIL — DKIM signs the last copy while the parser reads the first; (2) item/quantity/nonce are read only from merchant-extracted fields (single item line, ship-to name), not the whole body, so recommendations or gift messages cannot satisfy them. **B2 rule:** `amazon-in.ts` must anchor extraction to Amazon's item table, ship-to block and order total, returning null when ambiguous.

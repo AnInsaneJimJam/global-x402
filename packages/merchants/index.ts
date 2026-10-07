@@ -7,6 +7,9 @@ export type ExtractedOrder = {
   merchantOrderId: string | null;
   items: { name: string; quantity: number }[];
   recipientName: string | null;
+  // Ship-to location as far as the merchant's email shows it (Amazon.in: city and state only).
+  recipientCity: string | null;
+  recipientRegion: string | null;
   total: { currency: string; minor: string } | null;
 };
 export type MerchantConfig = {

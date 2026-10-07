@@ -11,8 +11,10 @@ export const submitEvidence: Handler = {
     if (current.funding !== 'CONFIRMED') fail('FUNDING_NOT_CONFIRMED');
     if (current.purchase?.state !== 'ORDERED' || current.purchase.operationId !== command.purchaseOperationId ||
       current.purchase.merchantOrderId !== command.merchantOrderId) fail('PURCHASE_REFERENCE_MISMATCH');
-    // Corrected evidence may replace FAIL/INCONCLUSIVE; accepted evidence is final.
+    // Corrected evidence may replace an automatic FAIL/INCONCLUSIVE; a PASS or any buyer decision is final.
     if (current.verification?.verdict === 'PASS') fail('EVIDENCE_ALREADY_ACCEPTED');
+    if (current.verification?.execution === 'MANUAL') fail('EVIDENCE_ALREADY_REVIEWED');
+    if (typeof current.evidence === 'object' && current.evidence?.evidenceId === command.evidenceId) fail('EVIDENCE_UNCHANGED');
   },
   async apply(db, actor, order, command) {
     if (command.command !== 'submit_evidence') fail('INVALID_COMMAND');

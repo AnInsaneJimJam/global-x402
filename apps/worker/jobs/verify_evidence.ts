@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Order, Verification } from '../../../packages/contracts/index.js';
+import type { Order, Recipient, Verification } from '../../../packages/contracts/index.js';
 import type { MerchantConfig } from '../../../packages/merchants/index.js';
 import { amazonIn } from '../../../packages/merchants/amazon-in.js';
 import { enqueue } from '../../../packages/procurement/outbox.js';
@@ -23,10 +23,15 @@ export function verifyEvidenceJob(deps: { merchants: Record<string, MerchantConf
     if (!snapshot || evidence?.sha256 !== sha256 || snapshot.verification) return; // superseded or already decided
     const merchant = deps.merchants[snapshot.intent.merchantId];
     const now = deps.now?.() ?? new Date();
+    const recipient = (await store.pool.query<{ data: Recipient }>('SELECT data FROM gob_recipients WHERE buyer_id=$1 AND ref=$2',
+      [snapshot.buyerId, snapshot.intent.recipientRef])).rows[0]?.data;
     const result = merchant ? await verifyOrderEmail({
       raw: await readEvidence(snapshot.id, sha256, deps.evidenceDir), merchant, resolveDkimKey: deps.resolveDkimKey, now,
       expected: { orderId: snapshot.id, claimId: snapshot.claimId ?? '', termsHash: snapshot.termsHash,
         nonce: snapshot.orderNonce ?? '', merchantId: snapshot.intent.merchantId,
+        // Missing recipient leaves these empty, which the verifier treats as UNKNOWN (never PASS).
+        recipientName: recipient && snapshot.orderNonce ? `${recipient.name} ${snapshot.orderNonce}` : '',
+        recipientCity: recipient?.city ?? '', ...(recipient?.state ? { recipientRegion: recipient.state } : {}),
         itemMatch: snapshot.intent.itemTitle ?? snapshot.intent.sku, quantity: snapshot.intent.quantity,
         totalMinor: snapshot.intent.fiatMinor, currency: snapshot.intent.currency,
         fundedAt: snapshot.fundedAt ?? '', purchaseDeadline: snapshot.escrow?.deadlines.submitResultBy ?? '',

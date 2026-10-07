@@ -17,10 +17,13 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   app.setErrorHandler((error, request, reply) => {
     const domain = error instanceof DomainError ? error : null;
     const invalid = error instanceof z.ZodError;
-    reply.code(domain?.status ?? (invalid ? 400 : 500)).send({ error: {
-      code: domain?.code ?? (invalid ? 'INVALID_INPUT' : 'INTERNAL_ERROR'),
-      effectStatus: domain || invalid ? 'NOT_STARTED' : 'OUTCOME_UNKNOWN',
-      recovery: domain?.recovery ?? (invalid ? 'CHANGE_INPUT' : 'RECONCILE'),
+    // Fastify's own request errors (415 media type, 413 body too large, …) are rejected inputs, not unknown effects.
+    const status = (error as { statusCode?: unknown }).statusCode;
+    const rejected = typeof status === 'number' && status >= 400 && status < 500 ? status : null;
+    reply.code(domain?.status ?? (invalid ? 400 : rejected ?? 500)).send({ error: {
+      code: domain?.code ?? (invalid ? 'INVALID_INPUT' : rejected ? 'INVALID_REQUEST' : 'INTERNAL_ERROR'),
+      effectStatus: domain || invalid || rejected ? 'NOT_STARTED' : 'OUTCOME_UNKNOWN',
+      recovery: domain?.recovery ?? (invalid || rejected ? 'CHANGE_INPUT' : 'RECONCILE'),
     }, requestId: request.id });
   });
   app.get('/v1/capabilities', async () => capabilities());
@@ -39,14 +42,17 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence', async request => commit(request, 'submit_evidence', id.parse(request.params.id)));
   app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence-reviews', async request => commit(request, 'review_evidence', id.parse(request.params.id)));
   // Track B: private recipient, funded-only assignment reveal and raw .eml evidence upload.
-  app.addContentTypeParser('message/rfc822', { parseAs: 'buffer', bodyLimit: 1024 * 1024 }, (_request, body, done) => done(null, body));
   app.put<{ Params: { ref: string } }>('/v1/recipients/:ref', async request =>
     putRecipient(service.store, actor(request.headers.authorization), request.params.ref, request.body));
   app.get<{ Params: { id: string } }>('/v1/orders/:id/assignment', async request =>
     assignment(service.store, actor(request.headers.authorization), request.params.id));
-  app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence-uploads', async request => {
-    if (!Buffer.isBuffer(request.body)) throw new DomainError('EVIDENCE_MUST_BE_MESSAGE_RFC822', 415, 'CHANGE_INPUT');
-    return storeEvidence(service.store, actor(request.headers.authorization), request.params.id, request.body);
+  // The 1 MB raw-email parser exists only inside this encapsulated scope; other routes keep 32 KB JSON.
+  app.register(async scope => {
+    scope.addContentTypeParser('message/rfc822', { parseAs: 'buffer', bodyLimit: 1024 * 1024 }, (_request, body, done) => done(null, body));
+    scope.post<{ Params: { id: string } }>('/v1/orders/:id/evidence-uploads', async request => {
+      if (!Buffer.isBuffer(request.body)) throw new DomainError('EVIDENCE_MUST_BE_MESSAGE_RFC822', 415, 'CHANGE_INPUT');
+      return storeEvidence(service.store, actor(request.headers.authorization), request.params.id, request.body);
+    });
   });
   app.get<{ Querystring: { after?: string } }>('/v1/orders', async request => service.opportunities(request.query.after ? id.parse(request.query.after) : ''));
   app.get<{ Params: { id: string } }>('/v1/orders/:id/control', async request =>
