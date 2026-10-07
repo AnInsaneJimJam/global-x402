@@ -12,7 +12,7 @@ Tools (MCP server `global-order-book-buyer`): `get_buyer_profile`, `place_order`
 ## 1. Understand the request
 - Call `get_buyer_profile` first: delivery city, allowed merchants, max escrow (tUSDM), minimum result window.
 - You need three facts. Ask once, briefly, for anything missing:
-  1. **Exact product title** as Amazon.in shows it (the proof check compares it exactly). If the user gives a link or a vague name, ask them to paste the title from the product page.
+  1. **Exact product title** as Amazon.in shows it (the proof check compares it exactly), plus the **product link** (`https://www.amazon.in/…`) if the user has it. Pass the link as `item_url`: the filler gets a one-click "Open product on Amazon.in". If the user gives only a vague name, ask them to paste the title (and link) from the product page.
   2. **Total in INR including delivery** (prepaid price at checkout).
   3. **Payout in tUSDM** for the filler. If the user doesn't say, propose `total ÷ 70`, rounded to 2 decimals (≈ ₹70 per tUSDM), and say fillers pick orders by this rate.
 - Refuse merchants outside the profile's allowlist and payouts above the max escrow.

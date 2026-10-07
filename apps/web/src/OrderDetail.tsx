@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { act, errorMessage, explorer, fiat, label, observePurchase, request, tokens, uploadEvidence } from "./api";
+import { act, errorMessage, explorer, fiat, label, observePurchase, productLink, request, tokens, uploadEvidence } from "./api";
 import type { Assignment, Control, Session } from "./api";
 import { Arrow, Notice } from "./ui";
 
@@ -226,8 +226,13 @@ export function OrderDetail({
                   <dl className="ship-to">
                     <div>
                       <dt>Item</dt>
-                      <dd>
-                        {assignment.itemTitle ?? "See order"} × {assignment.quantity}
+                      <dd className="product-cell">
+                        <a className="product-link" href={productLink(assignment.itemTitle, assignment.itemUrl)} target="_blank" rel="noreferrer noopener">
+                          {assignment.itemUrl ? "Open product on Amazon.in" : "Find on Amazon.in"} <Arrow diagonal />
+                        </a>
+                        <small>
+                          {assignment.itemTitle ?? "See order"} × {assignment.quantity}
+                        </small>
                       </dd>
                     </div>
                     <div>

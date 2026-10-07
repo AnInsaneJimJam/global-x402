@@ -86,6 +86,7 @@ export type Assignment = {
   nonce: string;
   merchantId: string;
   itemTitle: string | null;
+  itemUrl: string | null;
   quantity: number;
   currency: string;
   maximumChargeMinor: string;
@@ -155,6 +156,10 @@ export function rate(fiatMinor: string, netTokenUnits: string) {
 }
 
 export const explorer = (tx: string) => `https://preprod.cardanoscan.io/transaction/${tx}`;
+
+// The buyer's product page when given (server only accepts https amazon.in links), else an Amazon.in search for the title.
+export const productLink = (title: string | null, url?: string | null) =>
+  url ?? `https://www.amazon.in/s?k=${encodeURIComponent(title ?? "")}`;
 
 export function label(value: string) {
   return value.replaceAll("_", " ").replaceAll("-", " ").toLowerCase();

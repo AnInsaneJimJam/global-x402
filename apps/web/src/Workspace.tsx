@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { errorMessage, fiat, rate, request, tokens } from "./api";
+import { errorMessage, fiat, productLink, rate, request, tokens } from "./api";
 import type {
   Capabilities,
   Opportunity,
@@ -15,7 +15,7 @@ import { useCommands } from "./CommandDialog";
 
 type Row = Pick<
   Opportunity,
-  "id" | "merchantId" | "itemTitle" | "quantity" | "currency" | "fiatMinor" | "netTokenUnits"
+  "id" | "merchantId" | "itemTitle" | "itemUrl" | "quantity" | "currency" | "fiatMinor" | "netTokenUnits"
 > & { sample?: boolean };
 
 // Illustrative orders so the book is not empty on camera. Never stored, never claimable.
@@ -34,6 +34,7 @@ const SAMPLES: Row[] = [
   currency: "INR" as const,
   fiatMinor: fiatMinor!,
   netTokenUnits: netTokenUnits!,
+  itemUrl: null,
   sample: true,
 }));
 
@@ -349,7 +350,13 @@ export function Workspace() {
                         ].join(" ")}
                       >
                         <td>
-                          <strong>{item.itemTitle ?? "Item"}</strong>
+                          {item.sample ? (
+                            <strong>{item.itemTitle ?? "Item"}</strong>
+                          ) : (
+                            <a className="product-title" href={productLink(item.itemTitle, item.itemUrl)} target="_blank" rel="noreferrer noopener">
+                              <strong>{item.itemTitle ?? "Item"} ↗</strong>
+                            </a>
+                          )}
                           <span>
                             {item.merchantId === "amazon-in" ? "Amazon.in" : item.merchantId} · Qty {item.quantity}
                           </span>

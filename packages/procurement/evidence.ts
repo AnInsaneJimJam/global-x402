@@ -46,6 +46,7 @@ export async function assignment(store: Store, actor: Actor, orderId: string) {
   const recipient = row.rows[0]?.data ?? fail('RECIPIENT_NOT_PROVIDED');
   return {
     orderId: order.id, merchantId: order.intent.merchantId, sku: order.intent.sku, itemTitle: order.intent.itemTitle ?? null,
+    itemUrl: order.intent.itemUrl ?? null,
     quantity: order.intent.quantity, currency: order.intent.currency, maximumChargeMinor: order.intent.fiatMinor,
     nonce: order.orderNonce,
     // Amazon.in shows only the first word of the name in its confirmation, so the code goes first.

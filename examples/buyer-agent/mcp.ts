@@ -83,17 +83,18 @@ const tools = {
     description: 'Post a purchase for a filler to fulfil. Use the exact product title as shown on the merchant site, the total price in INR including delivery, and the tUSDM the filler is paid from escrow.',
     inputSchema: { type: 'object', required: ['item_title', 'total_inr', 'tusdm'], properties: {
       item_title: { type: 'string', description: 'Exact product title as the merchant shows it' },
+      item_url: { type: 'string', description: 'Product page link on amazon.in (https://www.amazon.in/…); the filler opens it to buy' },
       total_inr: { type: 'number', description: 'Order total in INR including delivery, e.g. 140' },
       tusdm: { type: 'number', description: 'tUSDM paid to the filler from escrow, e.g. 2' },
       quantity: { type: 'integer', minimum: 1, default: 1 },
       merchant: { type: 'string', enum: ['amazon-in'], default: 'amazon-in' } } },
-    run: async (a: { item_title: string; total_inr: number; tusdm: number; quantity?: number; merchant?: string }) => {
+    run: async (a: { item_title: string; item_url?: string; total_inr: number; tusdm: number; quantity?: number; merchant?: string }) => {
       const merchant = a.merchant ?? 'amazon-in', units = String(Math.round(a.tusdm * 1e6)), paise = String(Math.round(a.total_inr * 100));
       if (!profile.policy.allowedMerchants.includes(merchant)) throw new Error(`Policy: merchant ${merchant} not allowed`);
       if (BigInt(units) > BigInt(profile.policy.maxEscrowBaseUnits)) throw new Error('Policy: amount above this buyer\'s escrow limit');
       await client.putRecipient(profile.recipientRef, profile.recipient);
       const receipt = await client.commit({ command: 'create_intent', input: { clientOrderId: randomUUID(), merchantId: merchant,
-        sku: `${merchant}-item`, itemTitle: a.item_title, quantity: a.quantity ?? 1, recipientRef: profile.recipientRef, currency: 'INR',
+        sku: `${merchant}-item`, itemTitle: a.item_title, ...(a.item_url ? { itemUrl: a.item_url.split('?')[0] } : {}), quantity: a.quantity ?? 1, recipientRef: profile.recipientRef, currency: 'INR',
         fiatMinor: paise, netTokenUnits: units, assetId: profile.policy.assetId, network: 'cardano:preprod' } }, `intent-${randomUUID()}`);
       watch(receipt.orderId);
       return { orderId: receipt.orderId, posted: `${a.item_title} × ${a.quantity ?? 1}, ₹${a.total_inr} → ${a.tusdm} tUSDM`,

@@ -14,6 +14,8 @@ export const intentSchema = z.strictObject({
   sku: id,
   // Exact product title as the merchant shows it in the order confirmation (verifier ITEM criterion).
   itemTitle: z.string().min(1).max(300).optional(),
+  // Product page the filler opens to buy; https on the merchant's own domain only (no arbitrary links to fillers).
+  itemUrl: z.string().max(600).regex(/^https:\/\/(www\.)?amazon\.in\/[^\s"'<>]*$/).optional(),
   quantity: z.number().int().min(1).max(100),
   // Only opaque references; no raw delivery information in the prototype.
   recipientRef: id,
