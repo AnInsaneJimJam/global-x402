@@ -18,6 +18,60 @@ const client = new ControlClient(process.env.GOB_API ?? 'http://127.0.0.1:3000',
 const wallet = new MasumiNative({ url: env('BUYER_MASUMI_URL'), token: env('BUYER_MASUMI_TOKEN') }, { url: '', token: '' });
 const explorer = (tx: string) => `https://preprod.cardanoscan.io/transaction/${tx}`;
 
+// Funds once per order: an in-process lock plus the coordinator's funding fact (set by the fund_escrow commit).
+// ponytail: two buyer MCP processes could still race between wallet.fund and the commit; one process per buyer is assumed.
+const funding = new Set<string>();
+async function fund(orderId: string) {
+  if (funding.has(orderId)) return { submitted: 'Funding for this order is already in progress.' };
+  funding.add(orderId);
+  try {
+    const view = await client.inspect(orderId);
+    if (view.facts.some(f => f.key === 'funding' && f.value !== 'NOT_OBSERVED')) return { submitted: 'Escrow already funded for this order.' };
+    const { terms, grossBaseUnits, assetId } = await client.escrowTerms(orderId);
+    if (assetId !== profile.policy.assetId) throw new Error('Escrow asset differs from policy');
+    if (BigInt(grossBaseUnits) > BigInt(profile.policy.maxEscrowBaseUnits)) throw new Error('Escrow amount above policy limit');
+    const t = terms as EscrowTerms;
+    if ((Date.parse(t.deadlines.submitResultBy) - Date.now()) / 60_000 < profile.policy.minResultWindowMinutes) throw new Error('Result window too short for a safe purchase');
+    await wallet.fund(t);
+    await client.commit({ command: 'fund_escrow', orderId, selfFunded: true }, `fund-${orderId}`);
+    return { submitted: `Lock of ${Number(grossBaseUnits) / 1e6} tUSDM submitted from the buyer wallet`,
+      next: 'Preprod confirmation plus Masumi indexing takes about 5–12 minutes; then the filler sees the delivery details and places the order.' };
+  } finally { funding.delete(orderId); }
+}
+
+// Auto-fund: the buyer approved the order and its payout when placing it, so fund as soon as a filler claims it.
+const watched = new Map<string, string>();
+function watch(orderId: string) {
+  if (watched.has(orderId)) return;
+  watched.set(orderId, 'on: waiting for a filler to claim');
+  const timer = setInterval(async () => {
+    try {
+      const view = await client.inspect(orderId);
+      if (view.facts.some(f => f.key === 'funding' && f.value !== 'NOT_OBSERVED')) {
+        if (!watched.get(orderId)?.startsWith('auto-funded')) watched.set(orderId, 'done: escrow already funded');
+        return clearInterval(timer);
+      }
+      if (view.actions.some(x => x.command === 'fund_escrow' && x.status === 'AVAILABLE'))
+        watched.set(orderId, `auto-funded ${new Date().toISOString()}: ${(await fund(orderId)).submitted}`);
+    } catch (error) {
+      watched.set(orderId, `auto-fund failed: ${(error as Error).message}. Call fund_escrow manually.`);
+      clearInterval(timer);
+    }
+  }, 10_000);
+}
+
+async function status(orderId: string) {
+  const v = await client.inspect(orderId);
+  const fact = (key: string) => v.facts.find(f => f.key === key)?.value as Record<string, unknown> | string | undefined;
+  const escrow = fact('escrow') as { nativeState?: string; deadlines?: unknown; txs?: { kind: string; txHash: string }[] } | undefined;
+  const verification = fact('verification') as { verdict?: string; criteria?: { id: string; result: string }[] } | undefined;
+  return { summary: v.summary, funding: fact('funding'), verification: v.outcome.verification, settlement: v.outcome.settlement,
+    failedChecks: verification?.criteria?.filter(c => c.result !== 'PASS').map(c => `${c.id}: ${c.result}`) ?? [],
+    escrowState: escrow?.nativeState, deadlines: escrow?.deadlines, transactions: (escrow?.txs ?? []).map(t => ({ kind: t.kind, link: explorer(t.txHash) })),
+    availableActions: v.actions.filter(x => x.status === 'AVAILABLE').map(x => x.command), labels: v.integration,
+    autoFund: watched.get(orderId) ?? 'off (call wait_for_update to turn it on)' };
+}
+
 const tools = {
   get_buyer_profile: {
     description: 'Show the configured delivery recipient (city/state only) and spending policy for this buyer.',
@@ -41,38 +95,37 @@ const tools = {
       const receipt = await client.commit({ command: 'create_intent', input: { clientOrderId: randomUUID(), merchantId: merchant,
         sku: `${merchant}-item`, itemTitle: a.item_title, quantity: a.quantity ?? 1, recipientRef: profile.recipientRef, currency: 'INR',
         fiatMinor: paise, netTokenUnits: units, assetId: profile.policy.assetId, network: 'cardano:preprod' } }, `intent-${randomUUID()}`);
+      watch(receipt.orderId);
       return { orderId: receipt.orderId, posted: `${a.item_title} × ${a.quantity ?? 1}, ₹${a.total_inr} → ${a.tusdm} tUSDM`,
-        next: 'Wait for a filler to claim; then call fund_escrow. Check with get_order_status.' };
+        next: 'Auto-funding is on: the escrow is funded as soon as a filler claims. Call wait_for_update to follow the order.' };
     },
   },
   get_order_status: {
     description: 'Current state of an order: plain-language summary, funding, proof verification, settlement, deadlines, transactions and what can be done next.',
     inputSchema: { type: 'object', required: ['order_id'], properties: { order_id: { type: 'string' } } },
-    run: async (a: { order_id: string }) => {
-      const v = await client.inspect(a.order_id);
-      const fact = (key: string) => v.facts.find(f => f.key === key)?.value as Record<string, unknown> | string | undefined;
-      const escrow = fact('escrow') as { nativeState?: string; deadlines?: unknown; txs?: { kind: string; txHash: string }[] } | undefined;
-      const verification = fact('verification') as { verdict?: string; criteria?: { id: string; result: string }[] } | undefined;
-      return { summary: v.summary, funding: fact('funding'), verification: v.outcome.verification, settlement: v.outcome.settlement,
-        failedChecks: verification?.criteria?.filter(c => c.result !== 'PASS').map(c => `${c.id}: ${c.result}`) ?? [],
-        escrowState: escrow?.nativeState, deadlines: escrow?.deadlines, transactions: (escrow?.txs ?? []).map(t => ({ kind: t.kind, link: explorer(t.txHash) })),
-        availableActions: v.actions.filter(x => x.status === 'AVAILABLE').map(x => x.command), labels: v.integration };
+    run: async (a: { order_id: string }) => status(a.order_id),
+  },
+  wait_for_update: {
+    description: 'Wait (up to ~4 minutes) until the order changes — a filler claims, the escrow locks, the proof is verified, or it settles — then return the new status. Call again to keep following. Also turns on auto-funding for this order.',
+    inputSchema: { type: 'object', required: ['order_id'], properties: { order_id: { type: 'string' },
+      max_seconds: { type: 'integer', minimum: 10, maximum: 240, default: 240 } } },
+    run: async (a: { order_id: string; max_seconds?: number }) => {
+      watch(a.order_id);
+      const key = (s: Awaited<ReturnType<typeof status>>) =>
+        JSON.stringify([s.summary, s.funding, s.verification, s.settlement, s.transactions.length, s.autoFund]);
+      const first = await status(a.order_id), until = Date.now() + Math.min(a.max_seconds ?? 240, 240) * 1000;
+      while (Date.now() < until) {
+        await new Promise(resolve => setTimeout(resolve, 10_000));
+        const now = await status(a.order_id);
+        if (key(now) !== key(first)) return { changed: true, ...now };
+      }
+      return { changed: false, ...first };
     },
   },
   fund_escrow: {
     description: 'Lock the agreed tUSDM in Masumi escrow for the filler who claimed the order. The agent signs this with the buyer\'s own wallet key. Only works once a filler has claimed and escrow terms exist.',
     inputSchema: { type: 'object', required: ['order_id'], properties: { order_id: { type: 'string' } } },
-    run: async (a: { order_id: string }) => {
-      const { terms, grossBaseUnits, assetId } = await client.escrowTerms(a.order_id);
-      if (assetId !== profile.policy.assetId) throw new Error('Escrow asset differs from policy');
-      if (BigInt(grossBaseUnits) > BigInt(profile.policy.maxEscrowBaseUnits)) throw new Error('Escrow amount above policy limit');
-      const t = terms as EscrowTerms;
-      if ((Date.parse(t.deadlines.submitResultBy) - Date.now()) / 60_000 < profile.policy.minResultWindowMinutes) throw new Error('Result window too short for a safe purchase');
-      await wallet.fund(t);
-      await client.commit({ command: 'fund_escrow', orderId: a.order_id, selfFunded: true }, `fund-${a.order_id}`);
-      return { submitted: `Lock of ${Number(grossBaseUnits) / 1e6} tUSDM submitted from the buyer wallet`,
-        next: 'Preprod confirmation plus Masumi indexing takes about 5–12 minutes; then the filler sees the delivery details and places the order.' };
-    },
+    run: async (a: { order_id: string }) => fund(a.order_id),
   },
   review_evidence: {
     description: 'Approve or reject proof that did not pass automatically. Rejecting also asks the escrow for a refund.',

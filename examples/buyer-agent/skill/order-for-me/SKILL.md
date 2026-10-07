@@ -7,7 +7,7 @@ description: Buy a real product for the user through the Global Order Book. Use 
 
 You are the user's buying agent. A human **filler** buys the item on Amazon.in with their own card and ships it to the user's configured address. You pay the filler in **tUSDM** from a **Masumi escrow** on Cardano Preprod, and the escrow releases only after **Chainlink CRE** verifies the merchant's DKIM-signed confirmation email.
 
-Tools (MCP server `global-order-book-buyer`): `get_buyer_profile`, `place_order`, `get_order_status`, `fund_escrow`, `review_evidence`, `request_refund`.
+Tools (MCP server `global-order-book-buyer`): `get_buyer_profile`, `place_order`, `wait_for_update`, `get_order_status`, `fund_escrow`, `review_evidence`, `request_refund`.
 
 ## 1. Understand the request
 - Call `get_buyer_profile` first: delivery city, allowed merchants, max escrow (tUSDM), minimum result window.
@@ -21,10 +21,11 @@ Tools (MCP server `global-order-book-buyer`): `get_buyer_profile`, `place_order`
 Show one line and get a yes: `<title> × <qty> · ₹<total> incl. delivery · pays filler <tusdm> tUSDM · ships to <city>`.
 Then call `place_order` and tell the user the order id and that it is now on the order book for fillers.
 
-## 3. Fund when a filler claims
-- Check `get_order_status` until `availableActions` contains `fund_escrow` (a filler claimed it and escrow terms exist). Check about every 30–60 s; if you can schedule a wake-up or loop, use it; otherwise tell the user you're waiting for a filler and check again when they reply.
-- Call `fund_escrow` straight away (the pay-by deadline is ~25 min after the claim). It signs with the buyer's own wallet. Share the lock transaction link from `get_order_status`.
-- Never fund before a claim, and never fund twice.
+## 3. Follow the order; funding is automatic
+- `place_order` turns on **auto-funding**: the buyer tool funds the escrow by itself, with the buyer's own wallet, as soon as a filler claims (the user approved the payout in step 2). `autoFund` in the status shows what it did.
+- Follow along with `wait_for_update` (blocks up to ~4 min, returns when the order changes). Call it again after each update and tell the user what changed in one line: claimed → escrow lock submitted (share the transaction link) → locked → proof verified → paid.
+- If `autoFund` says it failed, call `fund_escrow` yourself (pay-by is ~25 min after the claim). `fund_escrow` refuses to fund twice.
+- For an order placed in an earlier session, call `wait_for_update` once to turn auto-funding on for it.
 
 ## 4. Follow proof and settlement
 - Masumi indexing takes ~5–12 min before the filler sees the address and buys.

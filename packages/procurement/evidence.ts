@@ -87,7 +87,9 @@ const LIVE_MERCHANTS = new Set(['amazon-in', 'amazon-sg']);
 export function integrationFor(order: Order) {
   const live = LIVE_MERCHANTS.has(order.intent.merchantId);
   return {
-    payment: { ...integration.payment, execution: order.escrow?.execution ?? integration.payment.execution },
+    // Before a claim there is no escrow yet: a live merchant on a Masumi-wired node will settle LIVE.
+    payment: { ...integration.payment, execution: order.escrow?.execution
+      ?? (live && process.env.FILLER_MASUMI_URL ? 'LIVE' as const : integration.payment.execution) },
     merchant: live ? { id: order.intent.merchantId as 'amazon-in' | 'amazon-sg', environment: 'LIVE' as const, checkout: 'HUMAN_ASSISTED' as const }
       : integration.merchant,
     verifier: { execution: order.verification?.execution ?? (live ? (process.env.VERIFIER === 'CRE' ? 'CRE_SIMULATION' as const : 'APP_WORKER_DKIM' as const) : integration.verifier.execution) },
