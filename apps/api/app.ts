@@ -30,11 +30,12 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   // Minimal dashboard (apps/web): static files, strict CSP, all data fetched from the same API.
   const web = (file: string) => readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8');
   const csp = "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'";
-  const page = web('index.html'), script = web('app.js');
+  const page = web('index.html'), script = web('app.js'), style = web('app.css');
   app.get('/', async (_request, reply) => reply.header('content-security-policy', csp).header('x-content-type-options', 'nosniff')
     .type('text/html; charset=utf-8').send(page));
   app.get('/app.js', async (_request, reply) => reply.header('x-content-type-options', 'nosniff')
     .type('text/javascript; charset=utf-8').send(script));
+  app.get('/app.css', async (_request, reply) => reply.header('x-content-type-options', 'nosniff').type('text/css; charset=utf-8').send(style));
   app.get('/v1/capabilities', async () => capabilities());
   app.get('/v1/capabilities/commands', async () => z.toJSONSchema(commandSchema));
   app.get('/v1/health', async () => ({ status: 'OK', scope: 'LOCAL_CONTROL_CONTRACT_ONLY' }));
