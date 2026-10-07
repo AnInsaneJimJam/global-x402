@@ -85,6 +85,8 @@ const creVerify: JobHandler = async (job, store) => {
     '--non-interactive', '--trigger-index', '0', '--skip-type-checks', '--target', 'staging-settings',
     '--http-payload', JSON.stringify({ orderId: order.id, sha256 }), '-R', `${root}workflows/cre-verify`, '-e', `${root}.env`],
   { cwd: `${root}workflows/cre-verify`, timeout: 180_000, maxBuffer: 8 * 1024 * 1024 });
+  // Show the CRE run in the worker terminal (check ids/results only; observed values stay out of logs).
+  for (const line of stdout.split('\n').filter(l => /\[USER LOG\]|Workflow compiled|Binary hash|Running trigger/.test(l))) console.log(`[cre] ${line.trim()}`);
   const after = (await store.pool.query<{ data: Order }>('SELECT data FROM gob_orders WHERE id=$1', [job.orderId])).rows[0]?.data;
   if (!after?.verification) throw new Error(`CRE simulation finished without recording a verdict: ${stdout.slice(-400)}`);
 };
