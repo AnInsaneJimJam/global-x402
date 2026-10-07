@@ -9,13 +9,13 @@ export const fixtureMerchant: MerchantConfig = {
   dkimDomains: ['shop.example'],
   extract(text) {
     const totals = [...text.matchAll(/^Order Total: ([A-Z]{3}) ([\d,]+\.\d{2})$/gm)];
-    const shipTo = [...text.matchAll(/^Ship to: ([^,\n]+), [^,\n]+, ([^,\n]+)$/gm)];
+    const shipTo = [...text.matchAll(/^Ship to: ([^,\n]+), [^,\n]+, ([^,\n]+), ([^,\n]+)$/gm)];
     return {
       merchantOrderId: /^Order #: (\S+)$/m.exec(text)?.[1] ?? null,
       items: [...text.matchAll(/^Item: (.+) x (\d+)$/gm)].map(m => ({ name: m[1]!, quantity: Number(m[2]) })),
       recipientName: shipTo.length === 1 ? shipTo[0]![1]! : null,
       recipientCity: shipTo.length === 1 ? shipTo[0]![2]! : null,
-      recipientRegion: null,
+      recipientRegion: shipTo.length === 1 ? shipTo[0]![3]! : null,
       total: totals.length === 1 ? { currency: totals[0]![1]!, minor: toMinor(totals[0]![2]!) } : null,
     };
   },
@@ -23,7 +23,7 @@ export const fixtureMerchant: MerchantConfig = {
 
 export const expected = {
   orderId: 'order-1', claimId: 'claim-1', termsHash: 'a'.repeat(64), nonce: 'GOB-7F3K',
-  recipientName: 'Alice Doe GOB-7F3K', recipientCity: 'Demo City',
+  recipientName: 'Alice Doe GOB-7F3K', recipientCity: 'Demo City', recipientRegion: 'Demo State',
   merchantId: 'fixture-merchant', itemMatch: 'Coca-Cola Original 330ml', quantity: 1,
   totalMinor: '5000', currency: 'INR',
   fundedAt: '2026-10-07T09:00:00Z', purchaseDeadline: '2026-10-07T12:00:00Z',
@@ -38,7 +38,7 @@ export function orderEmail(overrides: Partial<{ from: string; date: string; body
     `Order #: ${overrides.orderNo ?? '403-1234567-7654321'}`,
     'Item: Coca-Cola Original 330ml x 1',
     `Order Total: ${overrides.total ?? 'INR 50.00'}`,
-    `Ship to: Alice Doe ${nonce}, Synthetic Street, Demo City`,
+    `Ship to: Alice Doe ${nonce}, Synthetic Street, Demo City, Demo State`,
   ].join('\r\n');
   return [
     `From: Orders <${overrides.from ?? 'orders@shop.example'}>`,

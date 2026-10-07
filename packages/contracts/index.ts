@@ -35,7 +35,8 @@ export const commandSchema = z.discriminatedUnion('command', [
 // Name is short enough that " GOB-XXXXXX" still fits merchant name fields.
 export const recipientSchema = z.strictObject({
   name: z.string().min(1).max(38), line1: z.string().min(1).max(120), line2: z.string().max(120).optional(),
-  city: z.string().min(1).max(60), state: z.string().max(60).optional(), postalCode: z.string().min(3).max(12),
+  // State is required: merchant emails (Amazon.in) show only city + state, so both are checked.
+  city: z.string().min(1).max(60), state: z.string().min(1).max(60), postalCode: z.string().min(3).max(12),
   country: z.string().regex(/^[A-Z]{2}$/), phone: z.string().max(20).optional(),
 });
 export type Recipient = z.infer<typeof recipientSchema>;

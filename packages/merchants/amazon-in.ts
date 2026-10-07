@@ -14,7 +14,8 @@ export const amazonIn: MerchantConfig = {
     const totals = after('Total').map(line => /^([\d,]+(?:\.\d{1,2})?) INR$/.exec(line)).filter(m => m !== null);
     // Ship-to is the line directly before the single "Order #" label; nothing else in the body counts.
     const labels = lines.flatMap((line, n) => line === 'Order #' ? [n] : []);
-    const shipTo = labels.length === 1 ? /^(.+?) – ([^,]+), (.+)$/.exec(lines[labels[0]! - 1] ?? '') : null;
+    // Exactly one " – " and one ", ": a name the filler typed cannot smuggle in a second "– CITY, STATE".
+    const shipTo = labels.length === 1 ? /^([^–,]+) – ([^–,]+), ([^–,]+)$/.exec(lines[labels[0]! - 1] ?? '') : null;
     return {
       merchantOrderId: orderIds.length === 1 ? orderIds[0]! : null,
       items: lines.flatMap((line, n) => {

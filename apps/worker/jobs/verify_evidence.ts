@@ -31,7 +31,7 @@ export function verifyEvidenceJob(deps: { merchants: Record<string, MerchantConf
         nonce: snapshot.orderNonce ?? '', merchantId: snapshot.intent.merchantId,
         // Missing recipient leaves these empty, which the verifier treats as UNKNOWN (never PASS).
         recipientName: recipient && snapshot.orderNonce ? `${recipient.name} ${snapshot.orderNonce}` : '',
-        recipientCity: recipient?.city ?? '', ...(recipient?.state ? { recipientRegion: recipient.state } : {}),
+        recipientCity: recipient?.city ?? '', recipientRegion: recipient?.state ?? '',
         itemMatch: snapshot.intent.itemTitle ?? snapshot.intent.sku, quantity: snapshot.intent.quantity,
         totalMinor: snapshot.intent.fiatMinor, currency: snapshot.intent.currency,
         fundedAt: snapshot.fundedAt ?? '', purchaseDeadline: snapshot.escrow?.deadlines.submitResultBy ?? '',

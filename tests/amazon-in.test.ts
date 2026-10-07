@@ -44,6 +44,10 @@ test('nonce in the name does not help if the order ships elsewhere or the name d
   assert.deepEqual(await failed('Alice Doe GOB-7F3K – OTHER CITY, DEMO STATE'), ['RECIPIENT_CITY']);
   assert.deepEqual(await failed('Mallory GOB-7F3K – DEMO CITY, DEMO STATE'), ['RECIPIENT_NAME']);
   assert.ok((await failed('Alice Doe GOB-7F3KX – DEMO CITY, DEMO STATE')).includes('NONCE'));
+  // A second "– CITY, STATE" smuggled into the typed name makes the line unparseable, never a pass.
+  const smuggled = await run('Alice Doe GOB-7F3K – DEMO CITY, DEMO STATE – OTHER CITY, OTHER STATE');
+  assert.notEqual(smuggled.verdict, 'PASS');
+  assert.equal(smuggled.criteria.find(c => c.id === 'RECIPIENT_CITY')?.result, 'UNKNOWN');
 });
 
 test('second item line is extracted so verification can reject it; ambiguous total is null', () => {

@@ -13,7 +13,7 @@ import { buyer, claim, context, filler, intent, otherFiller } from './helpers.js
 
 const key = testKey();
 const ORDER_NO = '403-1234567-7654321';
-const recipient = { name: 'Alice Doe', line1: '1 Synthetic Street', city: 'Demo City', postalCode: '000000', country: 'SG' };
+const recipient = { name: 'Alice Doe', line1: '1 Synthetic Street', city: 'Demo City', state: 'Demo State', postalCode: '000000', country: 'SG' };
 const code = (expected: string) => (error: unknown) => error instanceof DomainError && error.code === expected;
 type Ctx = Awaited<ReturnType<typeof context>>;
 

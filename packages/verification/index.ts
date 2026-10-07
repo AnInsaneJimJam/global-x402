@@ -6,7 +6,7 @@ import type { ExtractedOrder, MerchantConfig } from '../merchants/index.js';
 export type ExpectedOrder = {
   orderId: string; claimId: string; termsHash: string; nonce: string; merchantId: string;
   // Buyer's stored recipient: full ship-to name (incl. nonce), city and optional state/region.
-  recipientName: string; recipientCity: string; recipientRegion?: string;
+  recipientName: string; recipientCity: string; recipientRegion: string;
   itemMatch: string; quantity: number; totalMinor: string; currency: string;
   fundedAt: string; purchaseDeadline: string;
   // Filler-declared order id; when given, the email's own order id must equal it (uniqueness is bound to it).
@@ -93,7 +93,7 @@ export async function verifyOrderEmail(i: {
       !!e.nonce && !!facts.recipientName && hasToken(facts.recipientName, e.nonce)),
     same('RECIPIENT_NAME', e.recipientName, facts.recipientName),
     same('RECIPIENT_CITY', e.recipientCity, facts.recipientCity),
-    ...(e.recipientRegion ? [same('RECIPIENT_REGION', e.recipientRegion, facts.recipientRegion)] : []),
+    same('RECIPIENT_REGION', e.recipientRegion, facts.recipientRegion),
     // Exactly one purchased line, and it must be the accepted item exactly (no substring: "X (Pack of 24)" ≠ "X").
     check('ITEM', e.itemMatch, item ? item.name : facts.items.length ? `${facts.items.length} item lines` : null,
       !!item && normalize(item.name) === normalize(e.itemMatch)),
