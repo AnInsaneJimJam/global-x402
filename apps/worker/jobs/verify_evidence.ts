@@ -65,7 +65,7 @@ export function verifyEvidenceJob(deps: { merchants: Record<string, MerchantConf
     const recipient = (await store.pool.query<{ data: Recipient }>('SELECT data FROM gob_recipients WHERE buyer_id=$1 AND ref=$2',
       [snapshot.buyerId, snapshot.intent.recipientRef])).rows[0]?.data;
     const result = merchant ? await verifyOrderEmail({
-      raw: await readEvidence(snapshot.id, sha256, deps.evidenceDir), merchant, resolveDkimKey: deps.resolveDkimKey, now,
+      raw: await readEvidence(snapshot.id, sha256, deps.evidenceDir, store), merchant, resolveDkimKey: deps.resolveDkimKey, now,
       expected: expectedFor(snapshot, recipient, evidence.merchantOrderId),
     }) : { verdict: 'INCONCLUSIVE' as const, reasonCodes: ['MERCHANT_NOT_SUPPORTED'], evidenceHash: sha256, observedAt: now.toISOString(),
       criteria: [{ id: 'MERCHANT', expected: snapshot.intent.merchantId, observed: null, result: 'UNKNOWN' as const }] };
@@ -83,12 +83,12 @@ const creVerify: JobHandler = async (job, store) => {
   const root = fileURLToPath(new URL('../../../', import.meta.url));
   const { stdout } = await run(process.env.CRE_BIN ?? `${homedir()}/.cre/bin/cre`, ['workflow', 'simulate', 'verify-order',
     '--non-interactive', '--trigger-index', '0', '--skip-type-checks', '--target', 'staging-settings',
-    '--http-payload', JSON.stringify({ orderId: order.id, sha256 }), '-R', `${root}workflows/cre-verify`, '-e', `${root}.env`],
+    '--http-payload', JSON.stringify({ orderId: order.id, sha256 }), '-R', `${root}workflows/cre-verify`, '-e', process.env.CRE_ENV_FILE ?? `${root}.env`],
   { cwd: `${root}workflows/cre-verify`, timeout: 180_000, maxBuffer: 8 * 1024 * 1024 });
   // Show the CRE run in the worker terminal (check ids/results only; observed values stay out of logs).
   for (const line of stdout.split('\n').filter(l => /\[USER LOG\]|Workflow compiled|Binary hash|Running trigger|TEE|Nitro|not a real TEE/.test(l))) console.log(`[cre] ${line.trim()}`);
   const after = (await store.pool.query<{ data: Order }>('SELECT data FROM gob_orders WHERE id=$1', [job.orderId])).rows[0]?.data;
-  if (!after?.verification) throw new Error(`CRE simulation finished without recording a verdict: ${stdout.slice(-400)}`);
+  if (!after?.verification) throw new Error('CRE simulation finished without recording a verdict; raw CLI output suppressed');
 };
 
 export const verifyEvidence = process.env.VERIFIER === 'CRE' ? creVerify : verifyEvidenceJob({ merchants: { 'amazon-in': amazonIn }, resolveDkimKey: dohResolver() });

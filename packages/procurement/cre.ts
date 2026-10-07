@@ -13,7 +13,7 @@ export async function creEvidence(store: Store, orderId: string, sha256: string)
   const recipient = (await store.pool.query<{ data: Recipient }>('SELECT data FROM gob_recipients WHERE buyer_id=$1 AND ref=$2',
     [order.buyerId, order.intent.recipientRef])).rows[0]?.data;
   return { orderId: order.id, sha256, merchantId: order.intent.merchantId,
-    emlBase64: (await readEvidence(order.id, sha256)).toString('base64'), expected: expectedFor(order, recipient, evidence.merchantOrderId) };
+    emlBase64: (await readEvidence(order.id, sha256, undefined, store)).toString('base64'), expected: expectedFor(order, recipient, evidence.merchantOrderId) };
 }
 
 const criterion = z.strictObject({ id: z.string().max(64), expected: z.string().max(400), observed: z.string().max(400).nullable(),

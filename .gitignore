@@ -13,3 +13,6 @@ coverage/
 # Real delivery address for the recorded run
 examples/buyer-agent/purchase.json
 examples/buyer-agent/profile.json
+
+.vercel/
+.railway/

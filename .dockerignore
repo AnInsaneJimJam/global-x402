@@ -1,0 +1,12 @@
+**/.env*
+**/.local
+**/.git
+**/node_modules
+**/dist
+**/.evidence
+**/.cre
+**/.vercel
+**/*.eml
+**/*.log
+examples/buyer-agent/profile.json
+examples/buyer-agent/purchase.json

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DomainError } from '../packages/contracts/index.js';
-import { assignment, putRecipient, storeEvidence } from '../packages/procurement/evidence.js';
+import { assignment, putRecipient, storeEvidence, readEvidence } from '../packages/procurement/evidence.js';
 import { runOne } from '../apps/worker/worker.js';
 import { verifyEvidenceJob } from '../apps/worker/jobs/verify_evidence.js';
 import { confirmFixtureFunding } from '../fixtures/adapters.js';
@@ -128,4 +128,22 @@ test('control view labels a real merchant order as LIVE, human-assisted and DKIM
   assert.deepEqual(view.integration.merchant, { id: 'amazon-in', environment: 'LIVE', checkout: 'HUMAN_ASSISTED' });
   assert.equal(view.integration.verifier.execution, 'APP_WORKER_DKIM');
   assert.equal(view.integration.payment.execution, 'MOCK');
+}));
+
+
+test('Postgres evidence survives separate API and worker filesystems and remains order-scoped', () => withContext(async (c, dir) => {
+  const previous = process.env.EVIDENCE_STORAGE;
+  process.env.EVIDENCE_STORAGE = 'POSTGRES';
+  try {
+    const { orderId } = await fundedOrder(c, 'hosted-proof');
+    const raw = Buffer.from('From: test@example.com\r\nSubject: synthetic proof\r\n\r\nSynthetic proof');
+    const uploaded = await storeEvidence(c.store, filler, orderId, raw, dir);
+    assert.deepEqual(await readEvidence(orderId, uploaded.sha256, join(dir, 'another-service'), c.store), raw);
+    await assert.rejects(readEvidence('different-order', uploaded.sha256, dir, c.store), code('EVIDENCE_NOT_FOUND'));
+    await assert.rejects(storeEvidence(c.store, otherFiller, orderId, raw, dir), code('NOT_FOUND'));
+    assert.equal((await storeEvidence(c.store, filler, orderId, raw, dir)).evidenceId, uploaded.evidenceId);
+  } finally {
+    if (previous === undefined) delete process.env.EVIDENCE_STORAGE;
+    else process.env.EVIDENCE_STORAGE = previous;
+  }
 }));

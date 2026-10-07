@@ -25,6 +25,7 @@ const csp = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self
 if (existsSync(webRoot)) await app.register(fastifyStatic, { root: webRoot, setHeaders: reply => {
   reply.header('content-security-policy', csp); reply.header('x-content-type-options', 'nosniff'); } });
 app.addHook('onClose', async () => store.close());
-await app.listen({ host: '127.0.0.1', port: Number(process.env.PORT ?? 3000) });
+const host = process.env.HOST ?? '127.0.0.1';
+await app.listen({ host, port: Number(process.env.PORT ?? 3000) });
 console.log((existsSync(webRoot) ? 'API and dashboard' : 'API (run `npm run build:web` for the dashboard)') + ' on http://127.0.0.1:' + (process.env.PORT ?? 3000) + ' (per-order labels show LIVE or MOCK for payment, merchant and verifier).');
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, async () => { await app.close(); });

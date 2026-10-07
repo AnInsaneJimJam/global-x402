@@ -69,6 +69,13 @@ export async function storeEvidence(store: Store, actor: Actor, orderId: string,
   if (bytes.length === 0 || bytes.length > MAX_EVIDENCE_BYTES) fail('EVIDENCE_SIZE', 413);
   if (!/^[\x21-\x39\x3b-\x7e]+:/.test(bytes.subarray(0, 200).toString('latin1'))) fail('EVIDENCE_NOT_EMAIL', 415);
   const sha256 = createHash('sha256').update(bytes).digest('hex');
+  if (process.env.EVIDENCE_STORAGE === 'POSTGRES') {
+    await store.pool.query(`INSERT INTO gob_evidence_files(order_id,sha256,filler_id,size_bytes,raw_bytes)
+      VALUES ($1,$2,$3,$4,$5) ON CONFLICT (order_id,sha256) DO UPDATE
+      SET raw_bytes=COALESCE(gob_evidence_files.raw_bytes,EXCLUDED.raw_bytes)`,
+    [order.id, sha256, actor.id, bytes.length, bytes]);
+    return { evidenceId: sha256, sha256, sizeBytes: bytes.length };
+  }
   const folder = join(dir, order.id);
   await mkdir(folder, { recursive: true, mode: 0o700 });
   try { await writeFile(join(folder, `${sha256}.eml`), bytes, { flag: 'wx', mode: 0o600 }); }
@@ -78,7 +85,15 @@ export async function storeEvidence(store: Store, actor: Actor, orderId: string,
   return { evidenceId: sha256, sha256, sizeBytes: bytes.length };
 }
 
-export function readEvidence(orderId: string, sha256: string, dir = evidenceDir()) {
+export async function readEvidence(orderId: string, sha256: string, dir = evidenceDir(), store?: Store) {
+  id.parse(orderId);
+  if (!/^[a-f0-9]{64}$/.test(sha256)) fail('INVALID_EVIDENCE_ID', 400);
+  if (process.env.EVIDENCE_STORAGE === 'POSTGRES') {
+    if (!store) throw new Error('PostgreSQL evidence storage requires a Store');
+    const row = (await store.pool.query<{ raw_bytes: Buffer | null }>(
+      'SELECT raw_bytes FROM gob_evidence_files WHERE order_id=$1 AND sha256=$2', [orderId, sha256])).rows[0];
+    return row?.raw_bytes ?? fail('EVIDENCE_NOT_FOUND', 404);
+  }
   return readFile(join(dir, id.parse(orderId), `${/^[a-f0-9]{64}$/.test(sha256) ? sha256 : fail('INVALID_EVIDENCE_ID', 400)}.eml`));
 }
 

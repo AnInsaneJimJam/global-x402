@@ -129,3 +129,7 @@ npm run typecheck
 - [Demo runbook](docs/DEMO.md) and [demo script](docs/DEMO-SCRIPT.md)
 - [CRE workflow](workflows/cre-verify/verify-order/README.md)
 - [Masumi node setup](infra/masumi/README.md)
+
+## Hosting
+
+See [Railway + Vercel deployment](docs/DEPLOYMENT.md) for the service layout, deployment configuration, private settings, and validation steps.
