@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { canonical } from '../../../packages/contracts/index.js';
 import type { Order, Settlement } from '../../../packages/contracts/index.js';
 import { enqueue } from '../../../packages/procurement/outbox.js';
 import type { Store } from '../../../packages/procurement/store.js';
@@ -63,7 +64,8 @@ export function settlementJobs(deps: Deps): JobHandlers {
       await locked(store, job.orderId, current => {
         const escrow = current.escrow!;
         const state = seen.paymentState ?? seen.purchaseState;
-        const before = JSON.stringify([current.funding, current.settlement, escrow.nativeState, escrow.txs]);
+        // canonical(): jsonb reorders keys, so plain JSON.stringify would report a change on every poll.
+        const before = canonical([current.funding, current.settlement, escrow.nativeState, escrow.txs]);
         escrow.lastObservedAt = seen.observedAt;
         if (state) escrow.nativeState = state;
         const txs = new Map((escrow.txs ?? []).map(tx => [tx.txHash, tx]));
@@ -77,7 +79,7 @@ export function settlementJobs(deps: Deps): JobHandlers {
         const next = state ? SETTLEMENT[state] : undefined;
         if (next) current.settlement = { state: next, txs: escrow.txs };
         terminal = TERMINAL.has(current.settlement?.state ?? '') || state === 'DisputedWithdrawn';
-        return before !== JSON.stringify([current.funding, current.settlement, escrow.nativeState, escrow.txs]);
+        return before !== canonical([current.funding, current.settlement, escrow.nativeState, escrow.txs]);
       });
       if (!terminal) await observeAgain(store, job.orderId, deps);
     },
