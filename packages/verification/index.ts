@@ -103,7 +103,8 @@ export async function verifyOrderEmail(i: {
       e.merchantOrderId === undefined || facts.merchantOrderId === e.merchantOrderId),
     // A missing bound (e.g. funding time not yet recorded) is UNKNOWN, not a pass or a fail.
     check('PLACED_AFTER_FUNDING', e.fundedAt, placedAt && !Number.isNaN(Date.parse(e.fundedAt)) ? placedAt.toISOString() : null,
-      !!placedAt && placedAt.getTime() >= Date.parse(e.fundedAt)),
+      // RFC 5322 Date has whole-second precision; compare at that precision (funding time is in ms).
+      !!placedAt && placedAt.getTime() >= Math.floor(Date.parse(e.fundedAt) / 1000) * 1000),
     check('PLACED_BEFORE_DEADLINE', e.purchaseDeadline,
       placedAt && !Number.isNaN(Date.parse(e.purchaseDeadline)) ? placedAt.toISOString() : null,
       !!placedAt && placedAt.getTime() <= Date.parse(e.purchaseDeadline)),

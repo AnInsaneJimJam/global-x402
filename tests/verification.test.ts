@@ -70,6 +70,12 @@ test('genuine email with wrong order facts fails the matching criterion', async 
   }
 });
 
+test('an email in the same second as funding is not treated as earlier', async () => {
+  const raw = await sign(orderEmail({ date: 'Wed, 07 Oct 2026 09:00:00 +0000' }), key.privateKey);
+  const result = await verify(raw, { expected: { ...expected, fundedAt: '2026-10-07T09:00:00.700Z' } });
+  assert.ok(!failed(result).includes('PLACED_AFTER_FUNDING'));
+});
+
 test('order placed before funding or after the deadline fails', async () => {
   const early = await sign(orderEmail({ date: 'Wed, 07 Oct 2026 08:00:00 +0000' }), key.privateKey);
   assert.ok(failed(await verify(early)).includes('PLACED_AFTER_FUNDING'));
