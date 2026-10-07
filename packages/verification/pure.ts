@@ -197,3 +197,17 @@ export function singleHeader(raw: Uint8Array, name: string): string | null {
   const found = splitMessage(raw).headers.filter(h => h.name === name);
   return found.length === 1 ? found[0]!.raw.slice(found[0]!.raw.indexOf(':') + 1).replace(/\r\n/g, '').trim() : null;
 }
+
+// Full order-email verification without Node APIs (runs inside the CRE workflow). Same rules as the local verifier.
+export async function verifyOrderEmailPure(i: { raw: Uint8Array; expected: import('./index.js').ExpectedOrder;
+  merchant: import('../merchants/index.js').MerchantConfig; resolveDkimKey: (domain: string, selector: string) => Promise<string | null>; now: Date }) {
+  const { evaluate } = await import('./criteria.js');
+  const dkim = await verifyDkim(i.raw, i.merchant.dkimDomains, i.resolveDkimKey);
+  let facts: import('../merchants/index.js').ExtractedOrder = { merchantOrderId: null, items: [], recipientName: null, recipientCity: null, recipientRegion: null, total: null };
+  try { facts = i.merchant.extract(textPart(i.raw)); } catch { /* unrecognised layout leaves facts UNKNOWN */ }
+  const date = singleHeader(i.raw, 'date'), parsed = date ? new Date(date) : null;
+  return evaluate({ expected: i.expected, merchant: i.merchant, facts, now: i.now, evidenceHash: toHex(sha256(i.raw)),
+    placedAt: parsed && !Number.isNaN(parsed.getTime()) ? parsed : null,
+    dkim: { result: dkim.result === 'pass' ? 'PASS' : dkim.result === 'unknown' ? 'UNKNOWN' : 'FAIL', expected: i.merchant.dkimDomains.join('|'),
+      observed: dkim.domain ? `${dkim.domain}: ${dkim.reason}` : dkim.reason, domain: dkim.result === 'pass' ? dkim.domain : null } });
+}

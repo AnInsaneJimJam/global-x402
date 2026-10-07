@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { dkimVerify } from 'mailauth/lib/dkim/verify.js';
 import { simpleParser } from 'mailparser';
 import type { ExtractedOrder, MerchantConfig } from '../merchants/index.js';
+import { evaluate } from './criteria.js';
 
 export type ExpectedOrder = {
   orderId: string; claimId: string; termsHash: string; nonce: string; merchantId: string;
@@ -27,8 +28,6 @@ function headerBlock(raw: Buffer) {
   const end = text.search(/\r?\n\r?\n/);
   return end === -1 ? text : text.slice(0, end);
 }
-const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
-const hasToken = (text: string, token: string) => normalize(text).split(' ').includes(normalize(token));
 function noKey(): never { throw Object.assign(new Error('no key'), { code: 'ENOTFOUND' }); }
 
 // Pure check of an order-confirmation email against the accepted order. No signing authority,
@@ -75,52 +74,8 @@ export async function verifyOrderEmail(i: {
   const dateLine = authHeaders.find(h => h.key === 'date')?.line.toString('latin1');
   const parsedDate = dateLine ? new Date(dateLine.replace(/^date:/i, '').replace(/\r?\n[ \t]+/g, ' ').trim()) : null;
   const placedAt = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null;
-  const e = i.expected;
-  const check = (id: string, expected: string, observed: string | null, ok: boolean): Criterion =>
-    ({ id, expected, observed, result: observed === null ? 'UNKNOWN' : ok ? 'PASS' : 'FAIL' });
-  const same = (id: string, expected: string, observed: string | null) =>
-    check(id, expected, expected ? observed : null, !!expected && observed !== null && normalize(observed) === normalize(expected));
-  const total = facts.total ? `${facts.total.currency} ${facts.total.minor}` : null;
-  const item = facts.items.length === 1 ? facts.items[0]! : null;
-  const criteria: Criterion[] = [
-    check('MERCHANT', e.merchantId, i.merchant.id, e.merchantId === i.merchant.id),
-    { id: 'DKIM_SIGNATURE', expected: [...allowed].join('|'), result: dkimResult,
-      observed: valid?.signingDomain ?? (ours[0] ? `${ours[0].signingDomain}: ${ours[0].status.result}` : 'no merchant signature') },
-    // The nonce binds the delivery recipient, so it must be in the merchant's ship-to name.
-    // The nonce ties the order to this assignment, but the filler knows it, so the ship-to must also match
-    // the buyer's stored recipient as far as the merchant email shows it. Empty expectations never pass.
-    check('NONCE', e.nonce, facts.recipientName === null || !e.nonce ? null : hasToken(facts.recipientName, e.nonce) ? e.nonce : 'absent',
-      !!e.nonce && !!facts.recipientName && hasToken(facts.recipientName, e.nonce)),
-    // Full-name merchants: exact match. First-word merchants (Amazon.in): the visible word must be exactly the
-    // first word of "<nonce> <name>", i.e. the nonce; the buyer's name itself is not visible there (documented limit).
-    check('RECIPIENT_NAME', i.merchant.nameDisplay === 'firstWord' ? e.recipientName.split(' ')[0] ?? '' : e.recipientName,
-      e.recipientName ? facts.recipientName : null, !!e.recipientName && facts.recipientName !== null &&
-      (i.merchant.nameDisplay === 'firstWord' ? normalize(facts.recipientName) === normalize(e.recipientName.split(' ')[0] ?? '')
-        : normalize(facts.recipientName) === normalize(e.recipientName))),
-    same('RECIPIENT_CITY', e.recipientCity, facts.recipientCity),
-    same('RECIPIENT_REGION', e.recipientRegion, facts.recipientRegion),
-    // Exactly one purchased line, and it must be the accepted item exactly (no substring: "X (Pack of 24)" ≠ "X").
-    check('ITEM', e.itemMatch, item ? item.name : facts.items.length ? `${facts.items.length} item lines` : null,
-      !!item && normalize(item.name) === normalize(e.itemMatch)),
-    check('QUANTITY', String(e.quantity), item ? String(item.quantity) : null, item?.quantity === e.quantity),
-    check('TOTAL', `${e.currency} ${e.totalMinor}`, total, total === `${e.currency} ${e.totalMinor}`),
-    check('MERCHANT_ORDER_ID', e.merchantOrderId ?? 'present', facts.merchantOrderId,
-      e.merchantOrderId === undefined || facts.merchantOrderId === e.merchantOrderId),
-    // A missing bound (e.g. funding time not yet recorded) is UNKNOWN, not a pass or a fail.
-    check('PLACED_AFTER_FUNDING', e.fundedAt, placedAt && !Number.isNaN(Date.parse(e.fundedAt)) ? placedAt.toISOString() : null,
-      // RFC 5322 Date has whole-second precision; compare at that precision (funding time is in ms).
-      !!placedAt && placedAt.getTime() >= Math.floor(Date.parse(e.fundedAt) / 1000) * 1000),
-    check('PLACED_BEFORE_DEADLINE', e.purchaseDeadline,
-      placedAt && !Number.isNaN(Date.parse(e.purchaseDeadline)) ? placedAt.toISOString() : null,
-      !!placedAt && placedAt.getTime() <= Date.parse(e.purchaseDeadline)),
-  ];
-  return {
-    verdict: criteria.some(c => c.result === 'FAIL') ? 'FAIL' : criteria.some(c => c.result === 'UNKNOWN') ? 'INCONCLUSIVE' : 'PASS',
-    criteria,
-    reasonCodes: criteria.filter(c => c.result !== 'PASS').map(c => `${c.id}_${c.result}`),
-    merchantOrderId: facts.merchantOrderId,
+  return evaluate({ expected: i.expected, merchant: i.merchant, facts, placedAt, now: i.now,
     evidenceHash: createHash('sha256').update(raw).digest('hex'),
-    dkimDomain: valid?.signingDomain ?? null,
-    observedAt: i.now.toISOString(),
-  };
+    dkim: { result: dkimResult, expected: [...allowed].join('|'), domain: valid?.signingDomain ?? null,
+      observed: valid?.signingDomain ?? (ours[0] ? `${ours[0].signingDomain}: ${ours[0].status.result}` : 'no merchant signature') } });
 }
