@@ -135,3 +135,15 @@ only Blockfrost. No provider switch or compatibility proxy is implemented.
 - Dependency install audit: zero reported vulnerabilities at initial installation; lifecycle scripts were disabled. This is not a security audit of the application.
 
 Procurement payment/merchant behavior tested remains fixture behavior; infrastructure checks are recorded separately above. G7 has partial evidence; G1–G6 and full G7 remain open. No claims of full 58-scenario coverage, native refund support or a completed MVP.
+
+## Live Preprod evidence — this machine (2026-10-07)
+
+| Observation | Evidence |
+|---|---|
+| Node | Masumi payment service 0.29.0 (teammate's pinned overlay), seeded native V2 Preprod source, healthy on `127.0.0.1:3001`. |
+| Wallets | Fresh purchasing `addr_test1qrdrnt9z…u5x9g` and selling `addr_test1qqtefm35…x4shtm`, funded from the Masumi dispenser (tADA + tUSDM; testnet needs no verification code). |
+| API keys | `POST /api-key` requires `UsageCredits` even when `usageLimited=false` (fixed in `scripts/masumi-setup.ts`). Keys scoped to one hot wallet each, Preprod only. |
+| Registry | `GET /registry` defaults to V1 sources — must pass `filterPaymentSourceType=Web3CardanoV2`. Filler agent confirmed: `67ab0c92…b7000000`. |
+| Escrow terms | `POST /payment` (seller key) accepted ISO times and returned the V2 payment request. |
+| Buyer lock | `POST /purchase` (buyer key) accepted ms-epoch times; the batch job locked **both** test escrows in one tx: [`663c26dc…62c7a6`](https://preprod.cardanoscan.io/transaction/663c26dc5974005e697b63350565c7aa24f911083f5bc52bece2b30ea862c7a6), block 5264091, 10:41:17Z. The node marked it `Pending` for several minutes after chain confirmation (sync lag). |
+| Amazon.in DKIM | Fresh order confirmation (10:39Z): `d=amazon.in` and `d=amazonses.com` both **pass** with live keys; no `l=`. Full verifier: all checks pass except the nonce — Amazon.in shows **only the first word of the recipient name**, so the code must be the first word (`GOB-XXXXXX Name`). Code changed accordingly. |
