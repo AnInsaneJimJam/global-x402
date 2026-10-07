@@ -45,7 +45,10 @@ export async function verifyOrderEmail(i: {
   const ours = dkim.results.filter(r => allowed.has(r.signingDomain?.toLowerCase() ?? ''));
   const valid = ours.find(r => r.status.result === 'pass' && !r.canonBodyLengthLimited &&
     SIGNED_HEADERS.every(header => (r.signingHeaders?.keys ?? '').toLowerCase().split(/[:\s]+/).includes(header)));
-  const transient = ours.some(r => r.status.result === 'temperror' || r.status.comment === 'no key');
+  // Unverifiable, not disproven: DNS failure, missing key, or a key the merchant has since revoked
+  // (empty "p=" — keys rotate, so old emails stop verifying). Never PASS; goes to manual review.
+  const transient = ours.some(r => r.status.result === 'temperror' ||
+    ['no key', 'invalid public key'].includes(r.status.comment ?? ''));
   const mail = await simpleParser(raw);
   // Two parsers read this message (mailauth for DKIM, mailparser for the body). Any header they could
   // split differently, or an unsigned duplicate (DKIM covers the last copy, parsers may read the first),

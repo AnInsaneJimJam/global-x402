@@ -15,9 +15,10 @@ export type MerchantConfig = {
   extract(text: string): ExtractedOrder;
 };
 
-// "1,234.50" -> "123450". Currencies in scope (INR, SGD, USD) all use two decimals.
+// "1,234.50" / "1,00,000.5" / "2009" -> minor units. Currencies in scope (INR, SGD, USD) use two
+// decimals; commas are grouping only (Western or Indian style).
 export function toMinor(amount: string): string {
-  const match = /^(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2})$/.exec(amount.trim());
+  const match = /^(\d[\d,]*)(?:\.(\d{1,2}))?$/.exec(amount.trim());
   if (!match) throw new Error(`Unrecognised amount: ${amount}`);
-  return BigInt(match[1]!.replaceAll(',', '') + match[2]!).toString();
+  return BigInt(match[1]!.replaceAll(',', '') + (match[2] ?? '').padEnd(2, '0')).toString();
 }
