@@ -150,3 +150,4 @@ The Masumi node's own secrets (`ADMIN_KEY`, `ENCRYPTION_KEY`, its Blockfrost key
 | Date | By | Change |
 |---|---|---|
 | 2026-10-07 | Handoff | Initial contract. Masumi route mapping provisional pending A2. |
+| 2026-10-07 | Track A | A0 foundation adds the v0.2 contract fields and vocabulary. Existing MOCK `NOT_IMPLEMENTED` outcomes and string evidence remain transitional until Track B replaces the fixture evidence path. |

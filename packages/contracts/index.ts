@@ -3,6 +3,9 @@ import { z } from 'zod';
 
 export const id = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 export const amount = z.string().regex(/^(0|[1-9][0-9]*)$/);
+const assetIdFormat = z.string().min(1).max(256).regex(/^[a-zA-Z0-9:._-]+$/);
+export const assetId = assetIdFormat
+  .refine(value => value === (process.env.ESCROW_ASSET_ID ?? 'fixture:test-token'), 'Asset is not configured');
 export const actorSchema = z.strictObject({ id, role: z.enum(['BUYER', 'FILLER']) });
 export type Actor = z.infer<typeof actorSchema>;
 export const intentSchema = z.strictObject({
@@ -12,10 +15,10 @@ export const intentSchema = z.strictObject({
   quantity: z.number().int().min(1).max(100),
   // Only opaque references; no raw delivery information in the prototype.
   recipientRef: id,
-  currency: z.literal('USD'),
+  currency: z.enum(['INR', 'SGD', 'USD']),
   fiatMinor: amount,
   netTokenUnits: amount,
-  assetId: z.literal('fixture:test-token'),
+  assetId,
   network: z.literal('cardano:preprod'),
 });
 export const commandSchema = z.discriminatedUnion('command', [
@@ -37,12 +40,26 @@ export const purchaseObservationSchema = z.strictObject({
 });
 export type PurchaseState = 'PREPARED' | 'SUBMITTING' | 'UNKNOWN' | 'ORDERED' | 'FAILED_CONFIRMED';
 export type Intent = z.infer<typeof intentSchema>;
+export type Quote = { fiatMinor: string; rewardMinor: string; grossBaseUnits: string; netBaseUnits: string;
+  protocolFeeBaseUnits: string; adaSubsidyLovelace: string; expiresAt: string };
+export type Deadlines = { payBy: string; submitResultBy: string; unlockAt: string; externalDisputeUnlockAt: string };
+export type Escrow = { escrowId: string; sellerAgentId: string; buyerWalletRef: string; assetId: string;
+  grossBaseUnits: string; deadlines: Deadlines; nativeState: string; lastObservedAt: string | null };
+export type Evidence = { evidenceId: string; sha256: string; sizeBytes: number; merchantOrderId: string; submittedAt: string };
+export type Verification = { verdict: 'PASS' | 'FAIL' | 'INCONCLUSIVE'; execution: 'APP_WORKER_DKIM' | 'MANUAL' | 'CRE_SIMULATION' | 'MOCK';
+  reviewedBy?: string; criteria: { id: string; expected: string; observed: string | null; result: 'PASS' | 'FAIL' | 'UNKNOWN' }[];
+  reasonCodes: string[]; evidenceHash: string; resultHash: string; observedAt: string };
+export type Settlement = { state: 'NONE' | 'RESULT_PENDING' | 'DISPUTE_WINDOW' | 'SETTLEMENT_PENDING' | 'PAID' | 'REFUND_PENDING' | 'REFUNDED' | 'DISPUTED';
+  txs: { kind: string; txHash: string; status: string }[] };
 export type Order = {
   id: string; buyerId: string; intent: Intent; termsHash: string;
   version: number; fillerId: string | null; claimId: string | null;
-  funding: 'NOT_OBSERVED' | 'CONFIRMED';
+  quote?: Quote | null; orderNonce?: string | null; escrow?: Escrow | null;
+  funding: 'NOT_OBSERVED' | 'PENDING' | 'CONFIRMED' | 'RECONCILING';
   purchase: { operationId: string; state: PurchaseState; merchantOrderId: string | null } | null;
-  evidence: string | null;
+  // Legacy fixture evidence is a string until Track B replaces its command.
+  evidence: Evidence | string | null;
+  verification?: Verification | null; settlement?: Settlement | null;
 };
 export const planSchema = z.strictObject({ id, actor: actorSchema, command: commandSchema,
   effectHash: z.string().regex(/^[a-f0-9]{64}$/), controlVersion: z.number().int().nullable(), expiresAt: z.iso.datetime() });
@@ -58,32 +75,43 @@ export const commandDescriptions: Record<Command['command'], { role: Actor['role
   submit_evidence: { role: 'FILLER', path: '/v1/orders/:id/evidence', meaning: 'Bind an actor-reported merchant order for future verification; acceptance is not proof.' },
 };
 export const integration = {
-  payment: { protocol: 'X402_MASUMI', network: 'cardano:preprod', execution: 'MOCK' },
-  merchant: { environment: 'MOCK', checkout: 'AUTOMATED' },
+  payment: { protocol: 'MASUMI_NATIVE', network: 'cardano:preprod', execution: 'MOCK', custody: 'OPERATOR_HELD_TEST_WALLETS' },
+  merchant: { id: 'fixture-merchant', environment: 'MOCK', checkout: 'AUTOMATED' },
   verifier: { execution: 'MOCK' },
 } as const;
 const integrationSchema = z.strictObject({
-  payment: z.strictObject({ protocol: z.literal('X402_MASUMI'), network: z.literal('cardano:preprod'), execution: z.literal('MOCK') }),
-  merchant: z.strictObject({ environment: z.literal('MOCK'), checkout: z.literal('AUTOMATED') }),
-  verifier: z.strictObject({ execution: z.literal('MOCK') }),
+  payment: z.strictObject({ protocol: z.literal('MASUMI_NATIVE'), network: z.literal('cardano:preprod'), execution: z.enum(['LIVE', 'MOCK']),
+    custody: z.literal('OPERATOR_HELD_TEST_WALLETS') }),
+  merchant: z.strictObject({ id: z.enum(['amazon-in', 'amazon-sg', 'fixture-merchant']), environment: z.enum(['LIVE', 'MOCK']),
+    checkout: z.enum(['HUMAN_ASSISTED', 'AUTOMATED']) }),
+  verifier: z.strictObject({ execution: z.enum(['APP_WORKER_DKIM', 'MANUAL', 'CRE_SIMULATION', 'MOCK']) }),
 });
 const purchaseReportSchema = z.strictObject({ operationId: id,
   state: z.enum(['PREPARED', 'SUBMITTING', 'UNKNOWN', 'ORDERED', 'FAILED_CONFIRMED']), merchantOrderId: id.nullable() });
 const factState = z.enum(['OBSERVED', 'NOT_OBSERVED', 'UNKNOWN', 'CONTRADICTED']);
+const sourceType = z.enum(['MASUMI_NODE', 'CHAIN_OBSERVER', 'ACTOR_REPORT', 'DKIM_EMAIL', 'MANUAL_REVIEW', 'MOCK_CHAIN']);
 export const controlSchema = z.strictObject({
-  schemaVersion: z.literal('0.1.0'), scope: z.strictObject({ kind: z.literal('order'), id }), viewer: actorSchema,
+  schemaVersion: z.literal('0.2.0'), scope: z.strictObject({ kind: z.literal('order'), id }), viewer: actorSchema,
   controlVersion: z.number().int().positive(), generatedAt: z.iso.datetime(), integration: integrationSchema,
   termsHash: z.string().regex(/^[a-f0-9]{64}$/), claimId: id.nullable(), summary: z.string(),
-  outcome: z.strictObject({ placement: z.enum(['ACTOR_REPORTED', 'UNKNOWN']), verification: z.literal('NOT_IMPLEMENTED'),
-    settlement: z.literal('NOT_IMPLEMENTED'), goal: z.literal('OPEN') }),
+  outcome: z.strictObject({ placement: z.enum(['ACTOR_REPORTED', 'UNKNOWN']),
+    verification: z.enum(['NOT_IMPLEMENTED', 'NOT_STARTED', 'PENDING', 'PASS', 'FAIL', 'INCONCLUSIVE', 'MANUAL_APPROVED', 'MANUAL_REJECTED']),
+    settlement: z.enum(['NOT_IMPLEMENTED', 'NONE', 'RESULT_PENDING', 'DISPUTE_WINDOW', 'SETTLEMENT_PENDING', 'PAID', 'REFUND_PENDING', 'REFUNDED', 'DISPUTED']),
+    goal: z.literal('OPEN') }),
   facts: z.array(z.discriminatedUnion('key', [
-    z.strictObject({ key: z.literal('funding'), state: factState, sourceType: z.literal('MOCK_CHAIN'), value: z.enum(['NOT_OBSERVED', 'CONFIRMED']) }),
-    z.strictObject({ key: z.literal('merchantPurchase'), state: factState, sourceType: z.literal('ACTOR_REPORT'), value: purchaseReportSchema.nullable() }),
+    z.strictObject({ key: z.literal('funding'), state: factState, sourceType, value: z.enum(['NOT_OBSERVED', 'PENDING', 'CONFIRMED', 'RECONCILING']) }),
+    z.strictObject({ key: z.literal('escrow'), state: factState, sourceType, value: z.unknown() }),
+    z.strictObject({ key: z.literal('merchantPurchase'), state: factState, sourceType, value: purchaseReportSchema.nullable() }),
+    z.strictObject({ key: z.literal('evidence'), state: factState, sourceType, value: z.unknown() }),
+    z.strictObject({ key: z.literal('verification'), state: factState, sourceType, value: z.unknown() }),
+    z.strictObject({ key: z.literal('settlement'), state: factState, sourceType, value: z.unknown() }),
   ])),
-  exposure: z.array(z.strictObject({ owner: id, assetId: z.literal('fixture:test-token'), units: amount, kind: z.literal('FIXTURE_LOCKED') })),
-  obligations: z.array(z.strictObject({ type: z.enum(['RECONCILE_PURCHASE', 'VERIFY_EVIDENCE', 'SUBMIT_EVIDENCE']),
+  exposure: z.array(z.strictObject({ owner: id, assetId: assetIdFormat, units: amount, kind: z.literal('FIXTURE_LOCKED') })),
+  obligations: z.array(z.strictObject({ type: z.enum(['FUND_ESCROW', 'PLACE_ORDER', 'RECONCILE_PURCHASE', 'SUBMIT_EVIDENCE', 'VERIFY_EVIDENCE',
+    'REVIEW_EVIDENCE', 'SUBMIT_RESULT', 'MONITOR_DISPUTE_WINDOW', 'REQUEST_REFUND', 'AUTHORIZE_REFUND', 'COLLECT']),
     owner: id.nullable(), operationId: id.optional() })),
-  actions: z.array(z.strictObject({ command: z.enum(['register_purchase', 'fund_escrow']), status: z.enum(['AVAILABLE', 'BLOCKED']),
+  actions: z.array(z.strictObject({ command: z.enum(['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'fund_escrow',
+    'review_evidence', 'request_refund', 'authorize_refund']), status: z.enum(['AVAILABLE', 'BLOCKED']),
     reasonCodes: z.array(z.string()), requiredAuthority: z.string().optional() })),
 });
 
@@ -106,7 +134,7 @@ export class DomainError extends Error {
 
 export function capabilities() {
   return {
-    contractVersion: '0.1.0', schemaHash: hash(z.toJSONSchema(commandSchema)), integration,
+    contractVersion: '0.2.0', schemaHash: hash(z.toJSONSchema(commandSchema)), integration,
     commands: ['create_intent', 'claim', 'register_purchase', 'submit_evidence'],
     configured: true, tested: false, availableNow: true,
     scope: 'LOCAL_CONTROL_CONTRACT_ONLY',

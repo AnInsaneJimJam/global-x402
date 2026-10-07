@@ -42,7 +42,11 @@
             },
             "currency": {
               "type": "string",
-              "const": "USD"
+              "enum": [
+                "INR",
+                "SGD",
+                "USD"
+              ]
             },
             "fiatMinor": {
               "type": "string",
@@ -54,7 +58,9 @@
             },
             "assetId": {
               "type": "string",
-              "const": "fixture:test-token"
+              "minLength": 1,
+              "maxLength": 256,
+              "pattern": "^[a-zA-Z0-9:._-]+$"
             },
             "network": {
               "type": "string",

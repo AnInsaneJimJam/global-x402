@@ -11,7 +11,8 @@ Recorded 7 October 2026. Architecture A and placement-based completion remain se
 | Actor runtime | Actor-local durable journal; one run executor; fixture checkout; uncertain-result reconciliation; stop/resume; missing-state blockers. Not a complete buyer/filler goal runner. |
 | Opportunity policy | Exact-integer ratio ranking, comparable units, hard cost/target/deadline filters and stable ties. Pending target capacity included in supplied policy; shared concurrent goal reservations not yet implemented. |
 | HTTP | Fastify on localhost; named finite command routes, redacted opportunities, owned work pagination, control/operation reads; development bearer sessions. No wallet authentication or privileged fixture-funding route. |
-| External systems | Payment MOCK / declared X402_MASUMI on Preprod; merchant MOCK; verifier MOCK. No actual native transaction, purchase, independently verified placement or CRE run. |
+| External systems | Payment MOCK / declared MASUMI_NATIVE on Preprod, with operator-held test-wallet custody; merchant MOCK; verifier MOCK. No actual native transaction, purchase, independently verified placement or CRE run. |
+| A0 foundation | Numbered idempotent migrations, per-command handlers, v0.2 contract vocabulary, and a transactional outbox with leased worker dispatch. No production job kind is registered yet. |
 
 Implementation entry points: `packages/contracts`, `packages/procurement`, `packages/agent-runtime`, `apps/api`, `fixtures`, `examples/control-demo.ts`. The [runbook](08-development.md) describes exact commands and limitations.
 
@@ -28,7 +29,7 @@ Installed through Codex's skill-installer helper using Git after archive downloa
 
 Inspected the published `@x402/cardano@2.28.0` package without installing/executing it in the application. npm tarball SHA-1: `74aaff1d117fe76f36b11b8c77992b7979cc2958`. Its README still explicitly documents that seller authorization uses a different digest from `masumi-payment-service`, preventing the stock node from driving that lock's lifecycle. Result submission/refunds/disputes need x402-aware tooling with the actual seller authority. [Versioned npm package](https://www.npmjs.com/package/@x402/cardano/v/2.28.0).
 
-G1/G3 therefore remain open. The compatibility inspection is not a lock/release/refund test and does not trigger an automatic native-Masumi fallback. No SDK is included in the runtime merely to create the appearance of live support.
+The selected MVP flow now uses native Masumi rather than x402. This historical compatibility inspection is not a native lock/release/refund test. A2 must establish real lifecycle behavior before the app treats any settlement action as live. No SDK is included in the runtime merely to create the appearance of live support.
 
 ## Merchant access
 
@@ -38,7 +39,7 @@ The founder has no merchant API access yet and is willing to obtain free or inex
 
 - `npm run typecheck`: PASS with strict TypeScript checks.
 - `npm run contracts:check`: PASS for generated command, plan, receipt and control-view schemas plus the role quickstart.
-- `npm test`: PASS, 16 tests, zero failures or skipped cases. Database-backed cases used isolated schemas in a disposable PostgreSQL 16 cluster with a private Unix socket; the cluster was stopped and removed by the test script.
+- `npm test`: PASS, 18 tests, zero failures or skipped cases after A0, including outbox lease/dispatch/deduplication and delayed-retry tests. Database-backed cases used isolated schemas in a disposable PostgreSQL 16 cluster with a private Unix socket; the cluster was stopped and removed by the test script.
 - `npm run demo` against a dedicated disposable development database: PASS, UNKNOWN → actor-reported ORDERED, exactly one checkout call, stopped run still reconciled, 1,467-byte decision view. Verification and settlement remained NOT_IMPLEMENTED.
 - Generated quickstart: 1,615 UTF-8 bytes. These are one fixture's measured sizes, not general performance guarantees.
 - Dependency install audit: zero reported vulnerabilities at initial installation; lifecycle scripts were disabled. This is not a security audit of the application.
