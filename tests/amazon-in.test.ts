@@ -37,6 +37,12 @@ test('second item line is extracted so verification can reject it; ambiguous tot
   assert.equal(amazonIn.extract(text({ extra: 'Total\n10 INR' })).total, null);
 });
 
+test('ship-to is read only from its position before "Order #", not from elsewhere in the body', () => {
+  // Real ship-to line does not match the pattern; a planted matching line further down must not be used.
+  const planted = text({ shipTo: 'Mallory', extra: 'Alice Doe GOB-7F3K – DEMO CITY, DEMO STATE' });
+  assert.equal(amazonIn.extract(planted).recipientName, null);
+});
+
 test('amounts accept rupees without decimals and Indian digit grouping', () => {
   assert.equal(toMinor('2009'), '200900');
   assert.equal(toMinor('1,00,000.50'), '10000050');

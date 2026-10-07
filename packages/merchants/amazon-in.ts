@@ -12,16 +12,16 @@ export const amazonIn: MerchantConfig = {
     const after = (label: string) => lines.flatMap((line, n) => line === label && lines[n + 1] ? [lines[n + 1]!] : []);
     const orderIds = after('Order #').filter(line => /^\d{3}-\d{7}-\d{7}$/.test(line));
     const totals = after('Total').map(line => /^([\d,]+(?:\.\d{1,2})?) INR$/.exec(line)).filter(m => m !== null);
-    // Item titles can also contain " – " and commas, so item lines ("* …") are excluded.
-    const shipTo = lines.filter(line => !line.startsWith('* ')).map(line => /^(.+?) – [^,]+, .+$/.exec(line))
-      .filter(m => m !== null);
+    // Ship-to is the line directly before the single "Order #" label; nothing else in the body counts.
+    const labels = lines.flatMap((line, n) => line === 'Order #' ? [n] : []);
+    const shipTo = labels.length === 1 ? /^(.+?) – [^,]+, .+$/.exec(lines[labels[0]! - 1] ?? '') : null;
     return {
       merchantOrderId: orderIds.length === 1 ? orderIds[0]! : null,
       items: lines.flatMap((line, n) => {
         const quantity = /^Quantity: (\d+)$/.exec(lines[n + 1] ?? '');
         return line.startsWith('* ') && quantity ? [{ name: line.slice(2), quantity: Number(quantity[1]) }] : [];
       }),
-      recipientName: shipTo.length === 1 ? shipTo[0]![1]! : null,
+      recipientName: shipTo?.[1] ?? null,
       total: totals.length === 1 ? { currency: 'INR', minor: toMinor(totals[0]![1]!) } : null,
     };
   },
