@@ -7,6 +7,8 @@ import type { Actor } from '../../packages/contracts/index.js';
 import type { Procurement } from '../../packages/procurement/service.js';
 import { assignment, putRecipient, storeEvidence } from '../../packages/procurement/evidence.js';
 import { escrowTerms } from '../../packages/procurement/settlement-view.js';
+import { creEvidence, creResultSchema } from '../../packages/procurement/cre.js';
+import { recordVerification } from '../worker/jobs/verify_evidence.js';
 
 export function createApp(service: Procurement, sessions: ReadonlyMap<string, Actor>) {
   const app = Fastify({ logger: false, bodyLimit: 32 * 1024 });
@@ -62,6 +64,22 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
     escrowTerms(service.store, actor(request.headers.authorization), request.params.id));
   app.get<{ Params: { id: string } }>('/v1/orders/:id/assignment', async request =>
     assignment(service.store, actor(request.headers.authorization), request.params.id));
+  // Chainlink CRE verifier interface: the workflow fetches evidence + expected terms and posts its verdict back.
+  // Separate credential (CRE_VERIFIER_TOKEN); disabled when unset. Verdicts are recorded as CRE_SIMULATION.
+  const creAuth = (request: FastifyRequest) => {
+    const expected = process.env.CRE_VERIFIER_TOKEN;
+    if (!expected || expected.length < 32 || request.headers['x-cre-token'] !== expected) throw new DomainError('NOT_FOUND', 404);
+  };
+  app.get<{ Params: { id: string }; Querystring: { sha256?: string } }>('/v1/internal/cre/evidence/:id', async request => {
+    creAuth(request);
+    return creEvidence(service.store, id.parse(request.params.id), z.string().regex(/^[a-f0-9]{64}$/).parse(request.query.sha256));
+  });
+  app.post('/v1/internal/verification-results', async request => {
+    creAuth(request);
+    const body = creResultSchema.parse(request.body);
+    const recorded = await recordVerification(service.store, body.orderId, body.sha256, body.result, 'CRE_SIMULATION');
+    return { recorded };
+  });
   // The 1 MB raw-email parser exists only inside this encapsulated scope; other routes keep 32 KB JSON.
   app.register(async scope => {
     scope.addContentTypeParser('message/rfc822', { parseAs: 'buffer', bodyLimit: 1024 * 1024 }, (_request, body, done) => done(null, body));

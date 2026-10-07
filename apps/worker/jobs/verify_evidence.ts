@@ -1,3 +1,7 @@
+import { execFile } from 'node:child_process';
+import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { z } from 'zod';
 import type { Order, Recipient, Verification } from '../../../packages/contracts/index.js';
 import type { MerchantConfig } from '../../../packages/merchants/index.js';
@@ -10,6 +14,7 @@ import { dohResolver } from '../../../packages/verification/doh.js';
 import type { JobHandler } from './index.js';
 import type { Store } from '../../../packages/procurement/store.js';
 
+const run = promisify(execFile);
 const payload = z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/) });
 
 // What the evidence must show for this order (shared by the local check and the CRE workflow's input).
@@ -61,33 +66,27 @@ export function verifyEvidenceJob(deps: { merchants: Record<string, MerchantConf
       [snapshot.buyerId, snapshot.intent.recipientRef])).rows[0]?.data;
     const result = merchant ? await verifyOrderEmail({
       raw: await readEvidence(snapshot.id, sha256, deps.evidenceDir), merchant, resolveDkimKey: deps.resolveDkimKey, now,
-      expected: { orderId: snapshot.id, claimId: snapshot.claimId ?? '', termsHash: snapshot.termsHash,
-        nonce: snapshot.orderNonce ?? '', merchantId: snapshot.intent.merchantId,
-        // Missing recipient leaves these empty, which the verifier treats as UNKNOWN (never PASS).
-        recipientName: recipient && snapshot.orderNonce ? `${snapshot.orderNonce} ${recipient.name}` : '',
-        recipientCity: recipient?.city ?? '', recipientRegion: recipient?.state ?? '',
-        itemMatch: snapshot.intent.itemTitle ?? snapshot.intent.sku, quantity: snapshot.intent.quantity,
-        totalMinor: snapshot.intent.fiatMinor, currency: snapshot.intent.currency,
-        fundedAt: snapshot.fundedAt ?? '', purchaseDeadline: snapshot.escrow?.deadlines.submitResultBy ?? '',
-        merchantOrderId: evidence.merchantOrderId },
+      expected: expectedFor(snapshot, recipient, evidence.merchantOrderId),
     }) : { verdict: 'INCONCLUSIVE' as const, reasonCodes: ['MERCHANT_NOT_SUPPORTED'], evidenceHash: sha256, observedAt: now.toISOString(),
       criteria: [{ id: 'MERCHANT', expected: snapshot.intent.merchantId, observed: null, result: 'UNKNOWN' as const }] };
-    await store.transaction(async db => {
-      const order = (await db.query<{ data: Order }>('SELECT data FROM gob_orders WHERE id=$1 FOR UPDATE', [job.orderId])).rows[0]?.data;
-      const current = order && typeof order.evidence === 'object' ? order.evidence : null;
-      if (!order || current?.sha256 !== sha256 || order.verification) return;
-      const decided = { verdict: result.verdict, execution: 'APP_WORKER_DKIM' as const, criteria: result.criteria,
-        reasonCodes: result.reasonCodes, evidenceHash: result.evidenceHash, observedAt: result.observedAt };
-      const verification: Verification = { ...decided, resultHash: resultHashOf(order, decided) };
-      order.verification = verification;
-      order.version++;
-      await db.query('UPDATE gob_orders SET data=$2 WHERE id=$1', [order.id, order]);
-      if (verification.verdict === 'PASS') {
-        await enqueue(db, { kind: 'submit_result', orderId: order.id,
-          dedupeKey: `result:${order.id}:${verification.resultHash}`, payload: { resultHash: verification.resultHash } });
-      }
-    });
+    await recordVerification(store, snapshot.id, sha256, result, 'APP_WORKER_DKIM');
   };
 }
 
-export const verifyEvidence = verifyEvidenceJob({ merchants: { 'amazon-in': amazonIn }, resolveDkimKey: dohResolver() });
+// VERIFIER=CRE: the verdict is computed by the Chainlink CRE workflow (workflows/cre-verify, local simulation),
+// which fetches the evidence from the API and posts its verdict back (recorded as CRE_SIMULATION).
+const creVerify: JobHandler = async (job, store) => {
+  const { sha256 } = payload.parse(job.payload);
+  const order = (await store.pool.query<{ data: Order }>('SELECT data FROM gob_orders WHERE id=$1', [job.orderId])).rows[0]?.data;
+  const evidence = order && typeof order.evidence === 'object' ? order.evidence : null;
+  if (!order || evidence?.sha256 !== sha256 || order.verification) return;
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  const { stdout } = await run(process.env.CRE_BIN ?? `${homedir()}/.cre/bin/cre`, ['workflow', 'simulate', 'verify-order',
+    '--non-interactive', '--trigger-index', '0', '--skip-type-checks', '--target', 'staging-settings',
+    '--http-payload', JSON.stringify({ orderId: order.id, sha256 }), '-R', `${root}workflows/cre-verify`, '-e', `${root}.env`],
+  { cwd: `${root}workflows/cre-verify`, timeout: 180_000, maxBuffer: 8 * 1024 * 1024 });
+  const after = (await store.pool.query<{ data: Order }>('SELECT data FROM gob_orders WHERE id=$1', [job.orderId])).rows[0]?.data;
+  if (!after?.verification) throw new Error(`CRE simulation finished without recording a verdict: ${stdout.slice(-400)}`);
+};
+
+export const verifyEvidence = process.env.VERIFIER === 'CRE' ? creVerify : verifyEvidenceJob({ merchants: { 'amazon-in': amazonIn }, resolveDkimKey: dohResolver() });

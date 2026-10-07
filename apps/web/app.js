@@ -27,11 +27,11 @@ async function commit(command, extra = {}) {
 }
 
 function chips(integration) {
-  const live = x => x === 'LIVE' || x === 'APP_WORKER_DKIM' || x === 'CRE_DON';
+  const live = x => x === 'LIVE' || x === 'APP_WORKER_DKIM' || x === 'CRE_DON' || x === 'CRE_SIMULATION';
   return [
     [`Cardano Preprod · Masumi escrow · ${integration.payment.execution}`, integration.payment.execution],
     [`${integration.merchant.id} · ${integration.merchant.checkout === 'HUMAN_ASSISTED' ? 'filler checkout' : integration.merchant.checkout} · ${integration.merchant.environment}`, integration.merchant.environment],
-    [`proof: ${integration.verifier.execution === 'APP_WORKER_DKIM' ? 'DKIM email' : integration.verifier.execution}`, integration.verifier.execution],
+    [`proof: ${integration.verifier.execution === 'APP_WORKER_DKIM' ? 'DKIM email' : integration.verifier.execution === 'CRE_SIMULATION' ? 'DKIM on Chainlink CRE (simulated)' : integration.verifier.execution}`, integration.verifier.execution],
   ].map(([text, value]) => el('span', text, `chip ${live(value) ? 'live' : value === 'MANUAL' ? '' : 'mock'}`));
 }
 
