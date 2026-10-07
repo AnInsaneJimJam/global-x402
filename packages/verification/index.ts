@@ -49,21 +49,25 @@ export async function verifyOrderEmail(i: {
 
   const mail = await simpleParser(raw);
   const text = mail.text ?? '';
-  let facts: ExtractedOrder = { merchantOrderId: null, quantity: null, total: null };
+  let facts: ExtractedOrder = { merchantOrderId: null, items: [], recipientName: null, total: null };
   try { facts = i.merchant.extract(text); } catch { /* unrecognised layout leaves facts UNKNOWN */ }
   const placedAt = mail.date && !Number.isNaN(mail.date.getTime()) ? mail.date : null;
   const e = i.expected;
   const check = (id: string, expected: string, observed: string | null, ok: boolean): Criterion =>
     ({ id, expected, observed, result: observed === null ? 'UNKNOWN' : ok ? 'PASS' : 'FAIL' });
   const total = facts.total ? `${facts.total.currency} ${facts.total.minor}` : null;
+  const item = facts.items.length === 1 ? facts.items[0]! : null;
   const criteria: Criterion[] = [
     check('MERCHANT', e.merchantId, i.merchant.id, e.merchantId === i.merchant.id),
     { id: 'DKIM_SIGNATURE', expected: [...allowed].join('|'), result: dkimResult,
       observed: valid?.signingDomain ?? (ours[0] ? `${ours[0].signingDomain}: ${ours[0].status.result}` : 'no merchant signature') },
-    check('NONCE', e.nonce, text.includes(e.nonce) ? e.nonce : 'absent', text.includes(e.nonce)),
-    check('ITEM', e.itemMatch, text.toLowerCase().includes(e.itemMatch.toLowerCase()) ? e.itemMatch : 'absent',
-      text.toLowerCase().includes(e.itemMatch.toLowerCase())),
-    check('QUANTITY', String(e.quantity), facts.quantity === null ? null : String(facts.quantity), facts.quantity === e.quantity),
+    // The nonce binds the delivery recipient, so it must be in the merchant's ship-to name.
+    check('NONCE', e.nonce, facts.recipientName === null ? null : facts.recipientName.includes(e.nonce) ? e.nonce : 'absent',
+      !!facts.recipientName?.includes(e.nonce)),
+    // Exactly one purchased line, and it must be the accepted item.
+    check('ITEM', e.itemMatch, item ? item.name : facts.items.length ? `${facts.items.length} item lines` : null,
+      !!item?.name.toLowerCase().includes(e.itemMatch.toLowerCase())),
+    check('QUANTITY', String(e.quantity), item ? String(item.quantity) : null, item?.quantity === e.quantity),
     check('TOTAL', `${e.currency} ${e.totalMinor}`, total, total === `${e.currency} ${e.totalMinor}`),
     check('MERCHANT_ORDER_ID', 'present', facts.merchantOrderId, true),
     check('PLACED_AFTER_FUNDING', e.fundedAt, placedAt?.toISOString() ?? null,

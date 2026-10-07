@@ -32,6 +32,8 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 
 ## Session log
 
+- 2026-10-07 — Security review fixes: (1) duplicated From/Date/Subject (and Content-Type/CTE) headers now FAIL — DKIM signs the last copy while the parser reads the first; (2) item/quantity/nonce are read only from merchant-extracted fields (single item line, ship-to name), not the whole body, so recommendations or gift messages cannot satisfy them. **B2 rule:** `amazon-in.ts` must anchor extraction to Amazon's item table, ship-to block and order total, returning null when ambiguous.
+
 - 2026-10-07 — B1 verifier landed on `track-b/evidence`. Decisions inside: only allowlisted merchant domains are ever looked up in DNS; signature must cover From/Date/Subject; any `l=` body-length limit is rejected (mailauth reports such signatures as `pass`, so the guard is ours); missing key / DNS failure → INCONCLUSIVE. Full suite 24/24, typecheck and contracts:check green. No shared files touched (Step 0 not yet merged).
 
 - 2026-10-07 — Handoff created. Baseline: typecheck, contracts:check, 16/16 tests green on `feature/agent-control-recovery` @ 27a4915.

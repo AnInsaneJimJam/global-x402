@@ -53,11 +53,16 @@ test('genuine email with wrong order facts fails the matching criterion', async 
     ['GOB-7F3K', 'GOB-ZZZZ', 'NONCE'],
     ['INR 50.00', 'INR 60.00', 'TOTAL'],
     ['INR 50.00', 'SGD 50.00', 'TOTAL'],
-    ['Quantity: 1', 'Quantity: 2', 'QUANTITY'],
+    ['330ml x 1', '330ml x 2', 'QUANTITY'],
     ['Coca-Cola Original 330ml', 'Pepsi 330ml', 'ITEM'],
+    // Item named only in a recommendation, nonce only in a gift message, extra item line.
+    ['Item: Coca-Cola Original 330ml x 1', 'Item: Pepsi 330ml x 1\r\nCustomers also bought: Coca-Cola Original 330ml', 'ITEM'],
+    ['Ship to: Alice Doe GOB-7F3K,', 'Gift message: GOB-7F3K\r\nShip to: Mallory,', 'NONCE'],
+    ['Order Total:', 'Item: Coca-Cola Original 330ml x 1\r\nOrder Total:', 'ITEM'],
   ];
+  const body = orderEmail().split('\r\n\r\n')[1]!;
   for (const [from, to, criterion] of cases) {
-    const raw = await sign(orderEmail({ body: orderEmail().split('\r\n\r\n')[1]!.replaceAll(from, to) }), key.privateKey);
+    const raw = await sign(orderEmail({ body: body.replaceAll(from, to) }), key.privateKey);
     const result = await verify(raw);
     assert.equal(result.verdict, 'FAIL', criterion);
     assert.ok(failed(result).includes(criterion), `${criterion}: ${failed(result)}`);

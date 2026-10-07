@@ -8,12 +8,13 @@ export const fixtureMerchant: MerchantConfig = {
   id: 'fixture-merchant',
   dkimDomains: ['shop.example'],
   extract(text) {
-    const total = /Order Total: ([A-Z]{3}) ([\d,]+\.\d{2})/.exec(text);
-    const quantity = /Quantity: (\d+)/.exec(text);
+    const totals = [...text.matchAll(/^Order Total: ([A-Z]{3}) ([\d,]+\.\d{2})$/gm)];
+    const shipTo = [...text.matchAll(/^Ship to: ([^,\n]+),/gm)];
     return {
-      merchantOrderId: /Order #: (\S+)/.exec(text)?.[1] ?? null,
-      quantity: quantity ? Number(quantity[1]) : null,
-      total: total ? { currency: total[1]!, minor: toMinor(total[2]!) } : null,
+      merchantOrderId: /^Order #: (\S+)$/m.exec(text)?.[1] ?? null,
+      items: [...text.matchAll(/^Item: (.+) x (\d+)$/gm)].map(m => ({ name: m[1]!, quantity: Number(m[2]) })),
+      recipientName: shipTo.length === 1 ? shipTo[0]![1]! : null,
+      total: totals.length === 1 ? { currency: totals[0]![1]!, minor: toMinor(totals[0]![2]!) } : null,
     };
   },
 };
@@ -30,8 +31,7 @@ export function orderEmail(overrides: Partial<{ from: string; date: string; body
     'Hello Alice Doe GOB-7F3K,',
     'Your order has been placed.',
     'Order #: 403-1234567-7654321',
-    'Item: Coca-Cola Original 330ml',
-    'Quantity: 1',
+    'Item: Coca-Cola Original 330ml x 1',
     'Order Total: INR 50.00',
     'Ship to: Alice Doe GOB-7F3K, Synthetic Street, Demo City',
   ].join('\r\n');

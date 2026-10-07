@@ -1,8 +1,12 @@
 // Per-merchant knowledge for verifying order-confirmation emails. Each merchant file
 // supplies its DKIM signing domains and how to read order facts from the email text.
+// Facts must come from the merchant's own order fields (item lines, ship-to, order total), never
+// from anywhere in the body: recommendations and gift messages are attacker-influenced text.
+// Return null for a field that is absent or ambiguous (e.g. two totals).
 export type ExtractedOrder = {
   merchantOrderId: string | null;
-  quantity: number | null;
+  items: { name: string; quantity: number }[];
+  recipientName: string | null;
   total: { currency: string; minor: string } | null;
 };
 export type MerchantConfig = {
