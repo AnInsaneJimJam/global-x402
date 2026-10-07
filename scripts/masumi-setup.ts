@@ -31,7 +31,7 @@ console.log(`buyer (purchasing) wallet: ${purchasing.walletAddress}\nfiller (sel
 
 for (const [prefix, wallet] of [['BUYER', purchasing], ['FILLER', selling]] as const) {
   if (root[`${prefix}_MASUMI_TOKEN`]) { console.log(`${prefix} key: exists`); continue; }
-  const key = await api<{ token: string }>('POST', '/api-key', { canRead: true, canPay: true, canAdmin: false, usageLimited: 'false',
+  const key = await api<{ token: string }>('POST', '/api-key', { canRead: true, canPay: true, canAdmin: false, usageLimited: 'false', UsageCredits: [],
     NetworkLimit: ['Preprod'], walletScopeEnabled: true, WalletScopeHotWalletIds: [wallet.id] });
   set(`${prefix}_MASUMI_TOKEN`, key.token);
   console.log(`${prefix} key: written (scoped to ${wallet.type} wallet, Preprod only)`);
