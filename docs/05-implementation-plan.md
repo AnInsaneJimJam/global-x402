@@ -1,6 +1,6 @@
 # Implementation plan
 
-This is a future execution plan. The current user request ends at the reviewed design/documentation handoff; do not start these implementation milestones as part of that request.
+Implementation was authorized after the documentation handoff on 7 October 2026. Milestone 1E has an initial executable control-contract slice; the remaining dependency spikes and complete MVP are still outstanding. [The integration manifest](integration-manifest.md) records implemented scope and evidence.
 
 ## Execution rule
 
@@ -8,7 +8,7 @@ Build a small vertical slice first. The highest-risk dependency is the real fund
 
 Build the agent interaction contract alongside those feasibility checks. Its core is the shared control view and operation/obligation model in [document 07](07-agent-system.md), not a collection of independent LLM wrappers. UI, reference clients and future tool transports must consume the same domain interface. The implementing agent reads the architecture and only the branch-specific adapter research needed for its current milestone; it need not reload all research for every edit.
 
-The stack/layout below is proposed for a new repository, not a statement that these directories already exist:
+The layout below is the target structure. Only the implemented subset listed in the integration manifest currently exists:
 
 ```text
 apps/web                 filler and operator interface

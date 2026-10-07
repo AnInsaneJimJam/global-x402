@@ -1,10 +1,10 @@
 # Global Order Book — implementation planning pack
 
-**Status: architecture A and order-placement completion confirmed; merchant selection and integration spikes remain.**
+**Status: implementation started. A local control-contract slice is runnable; live merchant, payment and CRE integration gates remain.**
 
-Prepared 7 October 2026. This repository currently contains planning documents, not an implemented application. The original diagram is preserved at [docs/assets/original-architecture.png](docs/assets/original-architecture.png).
+Prepared 7 October 2026. The repository contains the planning pack and an initial TypeScript/PostgreSQL implementation. The original diagram is preserved at [docs/assets/original-architecture.png](docs/assets/original-architecture.png).
 
-**Current work boundary:** finish and review the design documents, then stop. The implementation milestones describe future work; this documentation revision does not start application development, contract work or live integration experiments.
+**Implementation authorized:** the user requested Cardano skill installation and implementation on 7 October 2026, superseding the earlier documentation-only boundary. The first slice implements typed command preparation/commitment, transactional claims, purchase registration, actor-local restart recovery, deterministic opportunity ranking, and a local API/reference client. See [the runbook](docs/08-development.md) and [integration manifest](docs/integration-manifest.md) for exact scope and remaining gates. All external effects in the runnable fixture are MOCK; no actual escrow, purchase or CRE verification is claimed.
 
 Global Order Book lets a buyer's AI agent commission a Web2 purchase, reserve payment in Cardano escrow, and pay a filler who purchases using their own fiat. The filler earns an explicitly quoted reward. Verification connects the merchant's evidence to the escrow lifecycle.
 

@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "const": "create_intent"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "clientOrderId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "merchantId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "sku": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "recipientRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "currency": {
+              "type": "string",
+              "const": "USD"
+            },
+            "fiatMinor": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "netTokenUnits": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$"
+            },
+            "assetId": {
+              "type": "string",
+              "const": "fixture:test-token"
+            },
+            "network": {
+              "type": "string",
+              "const": "cardano:preprod"
+            }
+          },
+          "required": [
+            "clientOrderId",
+            "merchantId",
+            "sku",
+            "quantity",
+            "recipientRef",
+            "currency",
+            "fiatMinor",
+            "netTokenUnits",
+            "assetId",
+            "network"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "command",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "const": "claim"
+        },
+        "orderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "required": [
+        "command",
+        "orderId"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "const": "register_purchase"
+        },
+        "orderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "purchaseOperationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "required": [
+        "command",
+        "orderId",
+        "purchaseOperationId"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "const": "submit_evidence"
+        },
+        "orderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "purchaseOperationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "merchantOrderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "required": [
+        "command",
+        "orderId",
+        "purchaseOperationId",
+        "merchantOrderId"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

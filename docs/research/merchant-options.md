@@ -26,3 +26,13 @@ eBay expressly restricts guest and member checkout methods in sandbox until chec
 5. Select a platform only after both checkout and proof pass. If candidates fail, investigate another familiar cooperating merchant before proposing a custom demo merchant.
 
 The confirmed MVP predicate is order placement, not delivery. Later shipment tracking is useful but does not repair absent purchase evidence. Static API sandbox fixtures demonstrate parsing and integration shape; they do not prove the filler actually purchased the submitted order. Label such tests accordingly and keep them distinct from an end-to-end transaction.
+
+## Access and cost follow-up
+
+The founder currently has no merchant API access and is willing to obtain free or inexpensive access. Amazon advertises free Business account registration; API permissions are a separate onboarding step. No public per-call price or guaranteed approval for this project's Ordering API use was established in this review. Do not represent a free account as free, approved checkout access. [Free account registration](https://business.amazon.com/en/register), [API roles](https://docs.business.amazon.com/docs/amazon-business-roles).
+
+Amazon's currently documented static sandbox returns predetermined responses and does not execute a real purchase. It lists Cart, Document, Package Tracking, Product Search, Reconciliation and Reporting APIs; Ordering is absent from that list. Sandbox app credentials therefore do not establish usable automated checkout or purchase proof. [Sandbox documentation](https://docs.business.amazon.com/docs/amazon-business-api-sandbox).
+
+The first onboarding investigation should establish the target marketplace, Business/SPP eligibility, Order Placement role, exact use-case approval, and a supported independent order-reading role. Keep the purchasing group in test mode until its actual behavior has been established; active mode charges and ships orders. Ask the provider about any API/integration fees before adopting a paid option. [Ordering setup](https://docs.business.amazon.com/docs/ordering-api).
+
+eBay remains a second candidate, but its checkout sandbox itself requires access approval; a free developer account alone cannot run the buying flow. No paid intermediary or custom merchant has been selected. The local fixture adapter only tests this project's control behavior and does not override the user's last-resort preference for a custom demo merchant.

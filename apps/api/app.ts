@@ -1,0 +1,50 @@
+import Fastify from 'fastify';
+import type { FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { capabilities, commandSchema, commitSchema, DomainError, id, purchaseObservationSchema } from '../../packages/contracts/index.js';
+import type { Actor } from '../../packages/contracts/index.js';
+import type { Procurement } from '../../packages/procurement/service.js';
+
+export function createApp(service: Procurement, sessions: ReadonlyMap<string, Actor>) {
+  const app = Fastify({ logger: false, bodyLimit: 32 * 1024 });
+  function actor(authorization: string | undefined) {
+    const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : '';
+    const principal = sessions.get(token);
+    if (!principal) throw new DomainError('DEV_AUTH_REQUIRED', 401, 'REAUTHORIZE');
+    return principal;
+  }
+  app.setErrorHandler((error, request, reply) => {
+    const domain = error instanceof DomainError ? error : null;
+    const invalid = error instanceof z.ZodError;
+    reply.code(domain?.status ?? (invalid ? 400 : 500)).send({ error: {
+      code: domain?.code ?? (invalid ? 'INVALID_INPUT' : 'INTERNAL_ERROR'),
+      effectStatus: domain || invalid ? 'NOT_STARTED' : 'OUTCOME_UNKNOWN',
+      recovery: domain?.recovery ?? (invalid ? 'CHANGE_INPUT' : 'RECONCILE'),
+    }, requestId: request.id });
+  });
+  app.get('/v1/capabilities', async () => capabilities());
+  app.get('/v1/capabilities/commands', async () => z.toJSONSchema(commandSchema));
+  app.get('/v1/health', async () => ({ status: 'OK', scope: 'LOCAL_CONTROL_CONTRACT_ONLY' }));
+  app.post('/v1/action-plans', async request => service.prepare(actor(request.headers.authorization), request.body));
+  function commit(request: FastifyRequest, command: 'create_intent' | 'claim' | 'register_purchase' | 'submit_evidence', orderId?: string) {
+    const input = commitSchema.parse(request.body);
+    const key = id.parse(request.headers['idempotency-key']);
+    return service.act(actor(request.headers.authorization), input.planId, input.operationId,
+      orderId ? { command, orderId } : { command }, key);
+  }
+  app.post('/v1/intents', async request => commit(request, 'create_intent'));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/claims', async request => commit(request, 'claim', id.parse(request.params.id)));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/purchase-attempts', async request => commit(request, 'register_purchase', id.parse(request.params.id)));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence', async request => commit(request, 'submit_evidence', id.parse(request.params.id)));
+  app.get<{ Querystring: { after?: string } }>('/v1/orders', async request => service.opportunities(request.query.after ? id.parse(request.query.after) : ''));
+  app.get<{ Params: { id: string } }>('/v1/orders/:id/control', async request =>
+    service.inspect(actor(request.headers.authorization), id.parse(request.params.id)));
+  app.get<{ Params: { id: string } }>('/v1/operations/:id', async request =>
+    service.operation(actor(request.headers.authorization), id.parse(request.params.id)));
+  app.get<{ Querystring: { after?: string } }>('/v1/work', async request => service.work(actor(request.headers.authorization), request.query.after ? id.parse(request.query.after) : ''));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/purchase-observations', async request => {
+    await service.observePurchase(actor(request.headers.authorization), id.parse(request.params.id), purchaseObservationSchema.parse(request.body));
+    return { accepted: true, sourceType: 'ACTOR_REPORT', independentVerification: false };
+  });
+  return app;
+}

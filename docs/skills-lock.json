@@ -1,0 +1,39 @@
+{
+  "skills": [
+    {
+      "name": "build-transaction",
+      "repository": "cardano-foundation/cardano-dev-skills",
+      "commit": "8c8005aff19260383de24191bddbe476c670b410",
+      "path": "skills/build-transaction",
+      "sha256": "60612684e55cbf8bd4522fbe0af7cd6d00bdbbc86a45f4d603279d8ddc9f9e01"
+    },
+    {
+      "name": "query-chain",
+      "repository": "cardano-foundation/cardano-dev-skills",
+      "commit": "8c8005aff19260383de24191bddbe476c670b410",
+      "path": "skills/query-chain",
+      "sha256": "ed4a031931f987eb03b4ff989e0bcb17d7ddf1963e377e744a6e149aa49cc009"
+    },
+    {
+      "name": "debug-transaction",
+      "repository": "cardano-foundation/cardano-dev-skills",
+      "commit": "8c8005aff19260383de24191bddbe476c670b410",
+      "path": "skills/debug-transaction",
+      "sha256": "739123a91f6c5c87c29514bdb3b17bb83180b37366faa393ac5067cf670f0c90"
+    },
+    {
+      "name": "connect-wallet",
+      "repository": "cardano-foundation/cardano-dev-skills",
+      "commit": "8c8005aff19260383de24191bddbe476c670b410",
+      "path": "skills/connect-wallet",
+      "sha256": "7d3039d2a16a7dbcd00231d80e14e419782f9f3741cfa2b50d020a999ef7230c"
+    },
+    {
+      "name": "masumi",
+      "repository": "masumi-network/masumi-skills",
+      "commit": "3eabe4a243dfd3ee326a105736215eeb0d83c787",
+      "path": "skill",
+      "sha256": "50ab8a7ae393bfbcfe18770c39c79f4499adab71bce8cdc11645c605b6e9c1df"
+    }
+  ]
+}

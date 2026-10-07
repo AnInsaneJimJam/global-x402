@@ -1,0 +1,425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "order"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "viewer": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "BUYER",
+            "FILLER"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "controlVersion": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "integration": {
+      "type": "object",
+      "properties": {
+        "payment": {
+          "type": "object",
+          "properties": {
+            "protocol": {
+              "type": "string",
+              "const": "X402_MASUMI"
+            },
+            "network": {
+              "type": "string",
+              "const": "cardano:preprod"
+            },
+            "execution": {
+              "type": "string",
+              "const": "MOCK"
+            }
+          },
+          "required": [
+            "protocol",
+            "network",
+            "execution"
+          ],
+          "additionalProperties": false
+        },
+        "merchant": {
+          "type": "object",
+          "properties": {
+            "environment": {
+              "type": "string",
+              "const": "MOCK"
+            },
+            "checkout": {
+              "type": "string",
+              "const": "AUTOMATED"
+            }
+          },
+          "required": [
+            "environment",
+            "checkout"
+          ],
+          "additionalProperties": false
+        },
+        "verifier": {
+          "type": "object",
+          "properties": {
+            "execution": {
+              "type": "string",
+              "const": "MOCK"
+            }
+          },
+          "required": [
+            "execution"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "payment",
+        "merchant",
+        "verifier"
+      ],
+      "additionalProperties": false
+    },
+    "termsHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "claimId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "object",
+      "properties": {
+        "placement": {
+          "type": "string",
+          "enum": [
+            "ACTOR_REPORTED",
+            "UNKNOWN"
+          ]
+        },
+        "verification": {
+          "type": "string",
+          "const": "NOT_IMPLEMENTED"
+        },
+        "settlement": {
+          "type": "string",
+          "const": "NOT_IMPLEMENTED"
+        },
+        "goal": {
+          "type": "string",
+          "const": "OPEN"
+        }
+      },
+      "required": [
+        "placement",
+        "verification",
+        "settlement",
+        "goal"
+      ],
+      "additionalProperties": false
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "const": "funding"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "OBSERVED",
+                  "NOT_OBSERVED",
+                  "UNKNOWN",
+                  "CONTRADICTED"
+                ]
+              },
+              "sourceType": {
+                "type": "string",
+                "const": "MOCK_CHAIN"
+              },
+              "value": {
+                "type": "string",
+                "enum": [
+                  "NOT_OBSERVED",
+                  "CONFIRMED"
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "state",
+              "sourceType",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "const": "merchantPurchase"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "OBSERVED",
+                  "NOT_OBSERVED",
+                  "UNKNOWN",
+                  "CONTRADICTED"
+                ]
+              },
+              "sourceType": {
+                "type": "string",
+                "const": "ACTOR_REPORT"
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operationId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "pattern": "^[a-zA-Z0-9_-]+$"
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "PREPARED",
+                          "SUBMITTING",
+                          "UNKNOWN",
+                          "ORDERED",
+                          "FAILED_CONFIRMED"
+                        ]
+                      },
+                      "merchantOrderId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128,
+                            "pattern": "^[a-zA-Z0-9_-]+$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "operationId",
+                      "state",
+                      "merchantOrderId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "state",
+              "sourceType",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "exposure": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          },
+          "assetId": {
+            "type": "string",
+            "const": "fixture:test-token"
+          },
+          "units": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "kind": {
+            "type": "string",
+            "const": "FIXTURE_LOCKED"
+          }
+        },
+        "required": [
+          "owner",
+          "assetId",
+          "units",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "RECONCILE_PURCHASE",
+              "VERIFY_EVIDENCE",
+              "SUBMIT_EVIDENCE"
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[a-zA-Z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "operationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          }
+        },
+        "required": [
+          "type",
+          "owner"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "register_purchase",
+              "fund_escrow"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "BLOCKED"
+            ]
+          },
+          "reasonCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requiredAuthority": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command",
+          "status",
+          "reasonCodes"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "scope",
+    "viewer",
+    "controlVersion",
+    "generatedAt",
+    "integration",
+    "termsHash",
+    "claimId",
+    "summary",
+    "outcome",
+    "facts",
+    "exposure",
+    "obligations",
+    "actions"
+  ],
+  "additionalProperties": false
+}

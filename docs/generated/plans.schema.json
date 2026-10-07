@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "BUYER",
+            "FILLER"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "command": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "create_intent"
+            },
+            "input": {
+              "type": "object",
+              "properties": {
+                "clientOrderId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[a-zA-Z0-9_-]+$"
+                },
+                "merchantId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[a-zA-Z0-9_-]+$"
+                },
+                "sku": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[a-zA-Z0-9_-]+$"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "recipientRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[a-zA-Z0-9_-]+$"
+                },
+                "currency": {
+                  "type": "string",
+                  "const": "USD"
+                },
+                "fiatMinor": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)$"
+                },
+                "netTokenUnits": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)$"
+                },
+                "assetId": {
+                  "type": "string",
+                  "const": "fixture:test-token"
+                },
+                "network": {
+                  "type": "string",
+                  "const": "cardano:preprod"
+                }
+              },
+              "required": [
+                "clientOrderId",
+                "merchantId",
+                "sku",
+                "quantity",
+                "recipientRef",
+                "currency",
+                "fiatMinor",
+                "netTokenUnits",
+                "assetId",
+                "network"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "command",
+            "input"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "claim"
+            },
+            "orderId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            }
+          },
+          "required": [
+            "command",
+            "orderId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "register_purchase"
+            },
+            "orderId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "purchaseOperationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            }
+          },
+          "required": [
+            "command",
+            "orderId",
+            "purchaseOperationId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "submit_evidence"
+            },
+            "orderId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "purchaseOperationId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "merchantOrderId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            }
+          },
+          "required": [
+            "command",
+            "orderId",
+            "purchaseOperationId",
+            "merchantOrderId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "effectHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "controlVersion": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    }
+  },
+  "required": [
+    "id",
+    "actor",
+    "command",
+    "effectHash",
+    "controlVersion",
+    "expiresAt"
+  ],
+  "additionalProperties": false
+}

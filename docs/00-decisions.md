@@ -70,4 +70,4 @@ The research documents contain upstream evidence, not executed integration tests
 - [ ] G7 control/recovery scenarios and resource measurements pass; no new agent interface hides an unresolved external capability.
 - [ ] Milestone ownership is assigned when builders start; no fixed deadline is assumed.
 
-Once implementation is separately authorized, unresolved gates permit only neutral order models, interface skeletons, and test fixtures under labeled mocks; the agent must not fill unresolved settlement details with invented APIs or guarantees. The current request stops after documentation.
+Implementation was authorized on 7 October 2026. Unresolved gates permit neutral order models, interface skeletons and test fixtures under labeled mocks; the agent must not fill unresolved settlement details with invented APIs or guarantees. The initial control slice and actual checks are recorded in [the integration manifest](integration-manifest.md). No full G gate is marked passed by this initial slice.
