@@ -35,6 +35,86 @@ The selected MVP flow now uses native Masumi rather than x402. This historical c
 
 The founder has no merchant API access yet and is willing to obtain free or inexpensive access. Amazon Business is the first onboarding candidate, not a selected working adapter. [The merchant follow-up](research/merchant-options.md) separates free account registration, API role approval, sandbox availability and live order evidence. eBay checkout requires approval even in sandbox. No access application, paid subscription or real purchase has been submitted by this implementation.
 
+## A1 — Masumi Preprod deployment
+
+The [node runbook](../infra/masumi/README.md) and Compose deployment are implemented.
+One node holds distinct purchasing/selling test wallets, labeled
+`OPERATOR_HELD_TEST_WALLETS`. It has its own persistent Postgres database, explicit
+admin/encryption secrets, localhost-only HTTP, a guarded seed wrapper, and offline
+wallet phrase generation. Secrets remain in ignored `infra/masumi/.env`; only
+public observations belong here. The app remains `MOCK`.
+
+| Item | Pin / evidence |
+|---|---|
+| Masumi source | [tag 0.29.0](https://github.com/masumi-network/masumi-payment-service/tree/0.29.0), fetched and checked out at `71455701ac22c3380c50da54089e1b7363f6825d` |
+| Official image | `ghcr.io/masumi-network/masumi-payment-service@sha256:c7408906637858f121667e8e7fd973f2bda26c183eefc67eecacf9c09bf36ed9`; tag-to-digest inspected remotely; amd64 selected; OCI revision label matches source commit, built `2026-10-05T17:44:51Z` |
+| Database image | `postgres:16.13-bookworm@sha256:472efd9a66f2b2f1a5aeb18b28de74332e6ef88c2b93a1a5d812fb6db67a5f60` |
+| Tooling overlay | `local/gob-masumi-preprod:0.29.0-tooling`; restores exact source workspace files, relinks frozen dependencies offline with pnpm 10.30.2, lifecycle scripts disabled; build PASS |
+| Local tooling | Docker Engine 29.4.3, Compose v5.1.3, Node 22.22.1 |
+| Local secrets | Generated into ignored file, permissions 0600; repeated init preserves values |
+| Database startup | Pinned image pulled; isolated `gob-masumi-preprod-postgres-1` is healthy, no published database port |
+| Node startup | Migrations PASS; offline native import check PASS; HTTP health 200 / `ok`; container healthy on `127.0.0.1:3001` |
+| Wallet generation | Two distinct addresses derived offline; repeat-run preservation checked separately from seeding/funding |
+| Seed guard | Missing provider key correctly rejected before upstream execution; unseeded wallet API returns 401, as expected |
+| Provider | Founder configured Preprod project key locally; successful public asset and address queries |
+| Node seed | PASS; one native V2 Preprod source and two test wallets imported; wallet-list HTTP 200 |
+| Purchasing wallet | Node-imported address matches offline derivation; no funds observed at `2026-10-07T08:02:24.911Z` |
+| Selling wallet | Node-imported address matches offline derivation; no funds observed at `2026-10-07T08:02:24.911Z` |
+| Filler registry | Agent ID/registration transaction **UNOBSERVED**; V2 registration template prepared, not submitted |
+
+Public addresses generated offline on 7 October 2026 (not funding evidence):
+
+- Purchasing: `addr_test1qppw23czpf0qef8djjveuld582wauph9ysdlz0f33xx8ytyvxwyr2y4yzpclvz24zzqyez002mqus44g2fc2cxk7tjuqye5l5y`
+- Selling: `addr_test1qq6layjq247zdm72qta5mgxg5nl0qfs9hednu7jnll5ac82qyn8ml2z9tqeak5re2h7mrsc3mw7gp8uv34pppvqfe4dqfjuar2`
+
+Observed node source ID: `cmuxtg6w6000423k71r9i21sa`. Purchasing wallet ID
+`cmuxtg6w8000823k7qop8ioxf`, payment key hash
+`42e547020a5e0ca4ed94999e7db43a9dde06e5241bf13d31898c722c`.
+Selling wallet ID `cmuxtg6w8000923k7atgs2ivc`, payment key hash
+`35fe9240557c26efca02fb4da0c8a4fef02605be5b3e7a53ffe9dc1d`.
+These IDs are local node records, not on-chain agent identifiers.
+Founder reported the official faucet's rate limit. Funding is pending, not assumed
+from a submitted request. The Masumi dispenser advertises ADA/USDM and optional
+separate ADA collateral but requires a registration-email verification code.
+
+The official runner's missing `packages/payment-core` caused the native preflight
+to fail with `MODULE_NOT_FOUND` / `ERR_PACKAGE_PATH_NOT_EXPORTED`. Its globally
+installed pnpm 12.9.1 also attempted a package-manager download in the offline
+check. The tested overlay restores source files from the matching commit and
+installs pnpm 10.30.2 for frozen offline relinking. Startup/migration/preflight
+invoke installed Node tools directly. The upstream application and contract
+source are unchanged. A verified local source context replaced a slow remote
+BuildKit Git fetch. Build contexts exclude the node secret file.
+
+Source inspection of the pinned release identifies candidate tUSDM policy
+`16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde` and asset-name hex
+`0014df10745553444d`. App asset ID:
+`16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde.0014df10745553444d`.
+At `2026-10-07T07:58:55.658Z`, `manage.mjs asset` successfully read the Preprod asset:
+fingerprint `asset1mtjjpvfgtuxq3n872ptulrs25j0k4t8nd2pp2k`, token-registry metadata
+**decimals = 6**. This is observed metadata, distinct from validator-enforced base
+unit quantities; the helper reports absent metadata explicitly.
+The [Masumi wallet guide](https://www.masumi.network/dev/masumi/core-concepts/wallets)
+links [dispenser.masumi.network](https://dispenser.masumi.network) for test tokens;
+actual dispensing has not been observed. tADA funding uses the official
+[Cardano Preprod faucet](https://docs.cardano.org/cardano-testnet/tools/faucet/).
+
+The source-selected V2 escrow script is
+`addr_test1wzs4e6wc95hkwezlccjw9mdvq0r0rsgx6zk34avptga3ftgn37w4g` and registry
+policy is `67ab0c92c4ac1610895a1c965ee50aba41a8f1513b15240723b3bd0b`.
+These are **source-inspected**, not independently observed deployment or lifecycle
+evidence. `/api/v1/health`, `/api/v1/wallet/list`, and V2 registry metadata shapes
+were inspected in source; SHARED-CONTRACT §6 settlement routes remain provisional
+until A2. Actual transaction hashes, fees, deadline gaps, signers, scoped-token
+isolation and refund behavior are **NOT TESTED**.
+
+Provider alternative inspected after the founder asked about NowNodes:
+its [Blockfrost-compatible API](https://docs.nownodes.io/ada/blockfrost/) uses an
+`api-key` header, while stock Blockfrost uses `project_id`. The current
+[NowNodes endpoint catalogue](https://nownodes.io/nodes) lists Cardano Mainnet;
+Preprod support was not established. The pinned Masumi `RPCProvider` enum contains
+only Blockfrost. No provider switch or compatibility proxy is implemented.
+
 ## Verification record
 
 - `npm run typecheck`: PASS with strict TypeScript checks.
@@ -44,4 +124,4 @@ The founder has no merchant API access yet and is willing to obtain free or inex
 - Generated quickstart: 1,615 UTF-8 bytes. These are one fixture's measured sizes, not general performance guarantees.
 - Dependency install audit: zero reported vulnerabilities at initial installation; lifecycle scripts were disabled. This is not a security audit of the application.
 
-All external behavior tested is fixture behavior. G7 has partial evidence; G1–G6 and full G7 remain open. No claims of full 58-scenario coverage, native refund support or a completed MVP.
+Procurement payment/merchant behavior tested remains fixture behavior; infrastructure checks are recorded separately above. G7 has partial evidence; G1–G6 and full G7 remain open. No claims of full 58-scenario coverage, native refund support or a completed MVP.
