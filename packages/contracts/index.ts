@@ -150,11 +150,15 @@ export class DomainError extends Error {
 
 export function capabilities() {
   return {
+    // `integration` is the default for fixture orders; each control view carries that order's own labels.
     contractVersion: '0.2.0', schemaHash: hash(z.toJSONSchema(commandSchema)), integration,
+    merchants: [{ id: 'amazon-in', environment: 'LIVE', checkout: 'HUMAN_ASSISTED', verifier: 'APP_WORKER_DKIM',
+      tested: 'SYNTHETIC_EMAILS_AND_ONE_REVOKED_KEY_EMAIL_ONLY' }],
     commands: ['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'review_evidence'],
     configured: true, tested: false, availableNow: true,
     scope: 'LOCAL_CONTROL_CONTRACT_ONLY',
-    blockers: ['LIVE_FUNDING_UNVALIDATED', 'MERCHANT_NOT_SELECTED', 'CRE_NOT_CONNECTED', 'WALLET_AUTH_NOT_IMPLEMENTED'],
+    blockers: ['LIVE_FUNDING_UNVALIDATED', 'LIVE_DKIM_PASS_UNVERIFIED', 'MERCHANT_NONCE_IN_SHIP_TO_UNVERIFIED', 'CRE_NOT_CONNECTED',
+      'WALLET_AUTH_NOT_IMPLEMENTED'],
     schemas: '/v1/capabilities/commands',
   };
 }

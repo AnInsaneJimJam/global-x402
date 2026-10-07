@@ -27,9 +27,12 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 
 ## Blockers
 
-- None recorded yet.
+- PR #3 (track-b → mvp-integration) awaits human review/merge; automated merge was refused as merge-without-review.
+- **Unverified on real data** (each would push every real order to manual review): fresh Amazon.in email passing DKIM after Gmail download; Amazon accepting `GOB-XXXXXX` in the name and showing it on the ship-to line; email item title equal to the buyer-supplied `itemTitle`; email total (incl. delivery) equal to `fiatMinor`. One cheap real order with the code in the name tests all four.
 
 ## Interface change requests to Track A
+
+- **Behaviour changes needing your ack** (see SHARED-CONTRACT changelog "Correction" row): required `evidenceId`, `NOT_STARTED` default, required recipient `state`, per-order integration labels + `verificationView` in `inspect()`, 4xx error mapping, runtime `CoordinatorPort`/LIVE adapters, capabilities blockers, client error text.
 
 - **Set `order.fundedAt`** (ISO time) when the observer marks funding CONFIRMED; verifier uses it as the earliest valid order time.
 - `submit_result` handler: payload `{ resultHash }`; the hash is `order.verification.resultHash` (PASS or MANUAL approve).
