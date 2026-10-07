@@ -1,0 +1,100 @@
+name: gob-masumi-preprod
+
+x-node: &node
+  # Official tag 0.29.0; source commit 71455701ac22c3380c50da54089e1b7363f6825d.
+  image: local/gob-masumi-preprod:0.29.0-tooling
+  build:
+    context: .
+    additional_contexts:
+      masumi-source: ./.local/upstream
+  platform: linux/amd64
+  environment:
+    DATABASE_URL: postgresql://masumi:${POSTGRES_PASSWORD:?Run the local init command}@postgres:5432/masumi?schema=public
+    ADMIN_KEY: ${ADMIN_KEY:?Set an explicit ADMIN_KEY in infra/masumi/.env}
+    ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in infra/masumi/.env}
+    BLOCKFROST_API_KEY_PREPROD: ${BLOCKFROST_API_KEY_PREPROD:-}
+    PURCHASE_WALLET_PREPROD_MNEMONIC: ${PURCHASE_WALLET_PREPROD_MNEMONIC:-}
+    SELLING_WALLET_PREPROD_MNEMONIC: ${SELLING_WALLET_PREPROD_MNEMONIC:-}
+    COLLECTION_WALLET_PREPROD_ADDRESS: ${COLLECTION_WALLET_PREPROD_ADDRESS:-}
+    PORT: "3001"
+    SEED_ONLY_IF_EMPTY: "true"
+    SEED_V1_LEGACY: "false"
+    BLOCK_CONFIRMATIONS_THRESHOLD: "20"
+    AUTO_WITHDRAW_PAYMENTS: "true"
+    AUTO_WITHDRAW_REFUNDS: "true"
+  volumes:
+    - ./prisma-tool.mjs:/opt/gob/prisma-tool.mjs:ro
+  # Upstream errors may include provider details. Keep raw node output out of Docker logs.
+  logging:
+    driver: none
+  labels:
+    org.global-order-book.network: cardano:preprod
+    org.global-order-book.custody: OPERATOR_HELD_TEST_WALLETS
+
+services:
+  postgres:
+    image: postgres:16.13-bookworm@sha256:472efd9a66f2b2f1a5aeb18b28de74332e6ef88c2b93a1a5d812fb6db67a5f60
+    environment:
+      POSTGRES_USER: masumi
+      POSTGRES_DB: masumi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run the local init command}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U masumi -d masumi]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *node
+    command: [node, /opt/gob/prisma-tool.mjs, migrate]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  masumi:
+    <<: *node
+    command: [node, dist/index.js]
+    ports:
+      - 127.0.0.1:3001:3001
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  seed:
+    <<: *node
+    profiles: [tools]
+    command: [node, /opt/gob/prisma-tool.mjs, seed]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  preflight:
+    <<: *node
+    profiles: [tools]
+    command: [node, /opt/gob/prisma-tool.mjs, preflight]
+    network_mode: none
+
+  wallet-init:
+    image: ghcr.io/masumi-network/masumi-payment-service@sha256:c7408906637858f121667e8e7fd973f2bda26c183eefc67eecacf9c09bf36ed9
+    platform: linux/amd64
+    profiles: [tools]
+    network_mode: none
+    entrypoint: [node, /opt/gob/wallet-init.mjs]
+    volumes:
+      - ./.env:/run/gob/.env
+      - ./wallet-init.mjs:/opt/gob/wallet-init.mjs:ro
+    logging:
+      driver: none
+
+volumes:
+  pgdata:
