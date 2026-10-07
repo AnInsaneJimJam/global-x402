@@ -65,3 +65,5 @@ Buyer: store the delivery recipient once with `PUT /v1/recipients/:ref` (name, l
 Filler: `GOB_FILLER_TOKEN=… GOB_FILLER_ID=dev-filler FILLER_TARGET_UNITS=… FILLER_MAX_FIAT_MINOR=… FILLER_CURRENCY=INR npm run filler`. The agent ranks open orders, claims one, waits for funding, prints the exact checkout instructions (ship-to name includes the `GOB-XXXXXX` code), asks for the merchant order number, then for the downloaded `.eml`, and waits for the verdict. If unsure whether the order went through, answer `unsure`: the purchase stays blocked; rerun with `npm run filler -- <orderId>` to reconcile. Funding confirmation still comes from Track A (or `confirmFixtureFunding` in tests).
 
 Check a real email locally without uploading it: `node --import tsx scripts/check-eml.ts <file.eml>` (prints signature facts only).
+
+Dashboard: with `npm run dev` running, open `http://127.0.0.1:3000/`, paste `DEV_BUYER_TOKEN` or `DEV_FILLER_TOKEN`, and use **Open orders** / **My orders**. Buyers see Approve/Reject when evidence needs manual review.

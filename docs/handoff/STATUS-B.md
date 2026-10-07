@@ -14,7 +14,7 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 | B5 verify_evidence job + manual review | DONE | `apps/worker/jobs/verify_evidence.ts` (verifies outside tx, writes only if evidence still current, PASS → `submit_result`); `review_evidence` buyer command (MANUAL label) |
 | B6 Filler agent loop | DONE | `examples/filler-agent/{agent,main}.ts` (`npm run filler`): rank → claim → wait funding → human checkout via `humanCheckout` adapter + `ActorRuntime` journal over HTTP (`httpCoordinator`) → upload .eml → submit → wait verdict. `unsure` blocks re-buying; rerun with order id reconciles |
 | B7 Failure tests | DONE | docs/06 coverage: T09 edited email (`verification.test`), T10 wrong item/qty/total/recipient/time (`verification`, `amazon-in`), T11 reused merchant order (`control.test`, `evidence.test`), T12 key/DNS outage → INCONCLUSIVE, T24 wrong filler/wallet (`evidence`, `api`), T25 instructions in email are data, T28/T34/T55 no second purchase (`control`, `filler-agent`) |
-| B8 Dashboard (stretch) | NOT STARTED | |
+| B8 Dashboard (stretch) | DONE (minimal) | `apps/web/{index.html,app.js}` served at `GET /` by the API: open/my orders, control view with integration labels, verification criteria table, facts, obligations, actions; buyer Approve/Reject for manual review. textContent only, strict CSP |
 | B9 CRE simulation (stretch) | NOT STARTED | |
 
 ## B0 findings
@@ -36,6 +36,8 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 - `intent.itemTitle` (optional, exact merchant title) is accepted by `create_intent`; buyer runner should send it.
 
 ## Session log
+
+- 2026-10-07 — B8 minimal dashboard at `http://127.0.0.1:3000/` (paste a dev token). Renders the shared control view only; no business logic in the UI.
 
 - 2026-10-07 — B7 failure coverage mapped; added T25. Control view IntegrationIdentity is now per order: real merchants show `LIVE / HUMAN_ASSISTED` and verifier `APP_WORKER_DKIM` (or `MANUAL` after review); payment stays Track A's `MOCK` until live. 45/45 tests.
 
