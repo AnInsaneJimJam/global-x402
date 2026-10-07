@@ -1,0 +1,4 @@
+{
+  "apiUrl": "http://127.0.0.1:3000",
+  "dohUrl": "https://cloudflare-dns.com/dns-query"
+}

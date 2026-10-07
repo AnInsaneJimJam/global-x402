@@ -1,3 +1,7 @@
+import { evaluate } from './criteria.js';
+import type { ExpectedOrder } from './index.js';
+import type { ExtractedOrder, MerchantConfig } from '../merchants/index.js';
+
 // Dependency-free DKIM (rsa-sha256) verification and email text extraction, with no Node APIs, so the same
 // code runs inside a Chainlink CRE workflow (WASM). Covers what order-confirmation emails use: rsa-sha256,
 // relaxed/simple canonicalization, multipart text parts, quoted-printable/base64. Anything else → fail/unknown.
@@ -127,9 +131,22 @@ function canonBody(body: string, mode: string) {
   return text.length || mode === 'simple' ? `${text}\r\n` : '';
 }
 export type DkimOutcome = { result: 'pass' | 'fail' | 'unknown'; domain: string | null; reason: string; signedHeaders: string[] };
-// Verifies a signature from an allowed domain. resolveKey returns the DKIM TXT record, or null when missing/revoked.
+// Which DKIM keys (domain, selector) a verification will need: lets a CRE workflow fetch them first.
+export function dkimKeysNeeded(raw: Uint8Array, allowed: readonly string[]) {
+  return splitMessage(raw).headers.filter(h => h.name === 'dkim-signature')
+    .map(h => tags(h.raw.slice(h.raw.indexOf(':') + 1))).map(t => ({ domain: (t.d ?? '').toLowerCase(), selector: t.s ?? '' }))
+    .filter(k => allowed.includes(k.domain) && /^[a-z0-9._-]+$/i.test(k.selector));
+}
+export const keyId = (domain: string, selector: string) => `${selector}._domainkey.${domain}`;
+// Async convenience: fetch the needed keys, then verify synchronously.
 export async function verifyDkim(raw: Uint8Array, allowed: readonly string[],
   resolveKey: (domain: string, selector: string) => Promise<string | null>): Promise<DkimOutcome> {
+  const keys: Record<string, string | null> = {};
+  for (const k of dkimKeysNeeded(raw, allowed)) keys[keyId(k.domain, k.selector)] = await resolveKey(k.domain, k.selector).catch(() => null);
+  return verifyDkimWithKeys(raw, allowed, keys);
+}
+// Verifies a signature from an allowed domain against pre-fetched TXT records (null = missing/revoked). Synchronous.
+export function verifyDkimWithKeys(raw: Uint8Array, allowed: readonly string[], keys: Record<string, string | null>): DkimOutcome {
   const { headers, body } = splitMessage(raw);
   let outcome: DkimOutcome = { result: 'fail', domain: null, reason: 'no signature from an allowed domain', signedHeaders: [] };
   // Same guards as the local verifier: clean header block, and the From address must be the merchant's domain.
@@ -155,7 +172,7 @@ export async function verifyDkim(raw: Uint8Array, allowed: readonly string[],
     }
     if (t.a !== 'rsa-sha256' || t.l !== undefined) { outcome = { result: 'fail', domain, reason: 'unsupported algorithm or body length limit', signedHeaders: signed }; continue; }
     if (toBase64(sha256(bytesOf(canonBody(body, bc)))) !== t.bh) { outcome = { result: 'fail', domain, reason: 'body hash mismatch', signedHeaders: signed }; continue; }
-    const record = await resolveKey(domain, t.s ?? '').catch(() => null);
+    const record = keys[keyId(domain, t.s ?? '')] ?? null;
     const p = record ? tags(record).p : undefined;
     if (!p) { outcome = { result: 'unknown', domain, reason: 'key missing or revoked', signedHeaders: signed }; continue; }
     const used = new Map<string, number>(); let input = '';
@@ -207,15 +224,20 @@ export function singleHeader(raw: Uint8Array, name: string): string | null {
 }
 
 // Full order-email verification without Node APIs (runs inside the CRE workflow). Same rules as the local verifier.
-export async function verifyOrderEmailPure(i: { raw: Uint8Array; expected: import('./index.js').ExpectedOrder;
-  merchant: import('../merchants/index.js').MerchantConfig; resolveDkimKey: (domain: string, selector: string) => Promise<string | null>; now: Date }) {
-  const { evaluate } = await import('./criteria.js');
-  const dkim = await verifyDkim(i.raw, i.merchant.dkimDomains, i.resolveDkimKey);
-  let facts: import('../merchants/index.js').ExtractedOrder = { merchantOrderId: null, items: [], recipientName: null, recipientCity: null, recipientRegion: null, total: null };
+export function verifyOrderEmailWithKeys(i: { raw: Uint8Array; expected: ExpectedOrder; merchant: MerchantConfig;
+  keys: Record<string, string | null>; now: Date }) {
+  const dkim = verifyDkimWithKeys(i.raw, i.merchant.dkimDomains, i.keys);
+  let facts: ExtractedOrder = { merchantOrderId: null, items: [], recipientName: null, recipientCity: null, recipientRegion: null, total: null };
   try { facts = i.merchant.extract(textPart(i.raw)); } catch { /* unrecognised layout leaves facts UNKNOWN */ }
   const date = singleHeader(i.raw, 'date'), parsed = date ? new Date(date) : null;
   return evaluate({ expected: i.expected, merchant: i.merchant, facts, now: i.now, evidenceHash: toHex(sha256(i.raw)),
     placedAt: parsed && !Number.isNaN(parsed.getTime()) ? parsed : null,
     dkim: { result: dkim.result === 'pass' ? 'PASS' : dkim.result === 'unknown' ? 'UNKNOWN' : 'FAIL', expected: i.merchant.dkimDomains.join('|'),
       observed: dkim.domain ? `${dkim.domain}: ${dkim.reason}` : dkim.reason, domain: dkim.result === 'pass' ? dkim.domain : null } });
+}
+export async function verifyOrderEmailPure(i: { raw: Uint8Array; expected: ExpectedOrder; merchant: MerchantConfig;
+  resolveDkimKey: (domain: string, selector: string) => Promise<string | null>; now: Date }) {
+  const keys: Record<string, string | null> = {};
+  for (const k of dkimKeysNeeded(i.raw, i.merchant.dkimDomains)) keys[keyId(k.domain, k.selector)] = await i.resolveDkimKey(k.domain, k.selector).catch(() => null);
+  return verifyOrderEmailWithKeys({ ...i, keys });
 }

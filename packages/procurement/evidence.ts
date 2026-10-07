@@ -90,7 +90,7 @@ export function integrationFor(order: Order) {
     payment: { ...integration.payment, execution: order.escrow?.execution ?? integration.payment.execution },
     merchant: live ? { id: order.intent.merchantId as 'amazon-in' | 'amazon-sg', environment: 'LIVE' as const, checkout: 'HUMAN_ASSISTED' as const }
       : integration.merchant,
-    verifier: { execution: order.verification?.execution ?? (live ? 'APP_WORKER_DKIM' as const : integration.verifier.execution) },
+    verifier: { execution: order.verification?.execution ?? (live ? (process.env.VERIFIER === 'CRE' ? 'CRE_SIMULATION' as const : 'APP_WORKER_DKIM' as const) : integration.verifier.execution) },
   };
 }
 

@@ -30,7 +30,7 @@ Nothing is live in front of judges. Record each scene, cut the waiting, and keep
 
 ```sh
 npm run dev       # API + dashboard on http://127.0.0.1:3000
-npm run worker    # escrow terms, funding observer, DKIM verification, result submission
+npm run worker    # escrow terms, funding observer, DKIM verification on Chainlink CRE (VERIFIER=CRE, local simulation), result submission
 ```
 
 Open the dashboard twice (side by side): `http://127.0.0.1:3000/#token=<DEV_BUYER_TOKEN>&persona=buyer` and `…#token=<DEV_FILLER_TOKEN>&persona=filler` (tokens are in `.env`; the fragment never leaves the browser). Have Cardanoscan Preprod open in a tab.
@@ -48,7 +48,7 @@ Open the dashboard twice (side by side): `http://127.0.0.1:3000/#token=<DEV_BUYE
 | 7 | Result on chain (cut wait) | Timeline: *Result submitted to escrow* → *Dispute window*. Open the result tx. | Escrow now waits out the dispute window. |
 | 8 | Payout (cut ~25 min) | Timeline: *Paid out to filler*. Open the payout tx; show filler wallet on Cardanoscan. | Filler received tUSDM; economics panel shows effective rate. Masumi V2 takes no protocol fee. |
 | 9 | Safety (optional, 45s) | Second order: upload an edited email → **FAIL**, buyer Rejects → refund requested → (cut) **Refunded**. Or restart the filler agent after answering `unsure` → it reconciles and refuses to buy twice. | Fake proof can't get paid; uncertain checkout never double-buys. |
-| 10 | Honest limits (20s) | Slide. | Preprod test tokens; operator-held test wallets on one node; placement (not delivery) is verified; Amazon.in email shows only city/state; CRE simulation is next. |
+| 10 | Honest limits (20s) | Slide. | Preprod test tokens; operator-held test wallets on one node; placement (not delivery) is verified; Amazon.in email shows only city/state; verification runs in a local CRE simulation (no DON deployment access yet). |
 
 ### Timings (from the moment the filler claims)
 

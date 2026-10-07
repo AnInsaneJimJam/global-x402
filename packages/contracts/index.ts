@@ -162,7 +162,7 @@ export function capabilities() {
   return {
     // `integration` is the default for fixture orders; each control view carries that order's own labels.
     contractVersion: '0.2.0', schemaHash: hash(z.toJSONSchema(commandSchema)), integration,
-    merchants: [{ id: 'amazon-in', environment: 'LIVE', checkout: 'HUMAN_ASSISTED', verifier: 'APP_WORKER_DKIM',
+    merchants: [{ id: 'amazon-in', environment: 'LIVE', checkout: 'HUMAN_ASSISTED', verifier: process.env.VERIFIER === 'CRE' ? 'CRE_SIMULATION' : 'APP_WORKER_DKIM',
       tested: 'SYNTHETIC_EMAILS_AND_ONE_REVOKED_KEY_EMAIL_ONLY' }],
     commands: ['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'review_evidence', 'fund_escrow', 'request_refund', 'authorize_refund'],
     configured: true, tested: false, availableNow: true,
