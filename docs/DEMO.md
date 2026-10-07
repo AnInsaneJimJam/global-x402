@@ -20,47 +20,47 @@ Nothing is live in front of judges. Record each scene, cut the waiting, and keep
    - tADA for **both** from the [Cardano Preprod faucet](https://docs.cardano.org/cardano-testnets/tools/faucet).
    - tUSDM for the **purchasing (buyer)** wallet from the [Masumi dispenser](https://dispenser.masumi.network).
 4. **Wire the app to the node**: `npm run masumi:setup`. Creates buyer/filler API keys scoped to their wallets, registers the filler agent on Preprod (on-chain, a few minutes) and writes `BUYER_/FILLER_MASUMI_URL/TOKEN`, `FILLER_AGENT_IDENTIFIER`, `ESCROW_ASSET_ID` into the ignored `.env`. Re-runnable.
-5. **Purchase details**: copy `examples/buyer-agent/purchase.example.json` to `examples/buyer-agent/purchase.json` (git-ignored; it holds a real address) and set:
-   - `itemTitle`: the product title **exactly** as Amazon.in shows it in the order email;
-   - `fiatMinor`: the **order total including delivery** in paise (₹50.00 → `5000`); pick an item with free delivery;
-   - `netTokenUnits`: tUSDM the filler receives, 6 decimals (0.60 tUSDM → `600000`);
-   - `recipient`: real delivery name/address in India, **with `state`** (Amazon emails show city + state).
+5. **Buyer agent profile**: copy `examples/buyer-agent/profile.example.json` to `examples/buyer-agent/profile.json` (git-ignored; real address, **with `state`**) and register the MCP server once: `claude mcp add global-order-book-buyer --scope user -e GOB_API=http://127.0.0.1:3000 -e GOB_BUYER_TOKEN=… -e BUYER_MASUMI_URL=… -e BUYER_MASUMI_TOKEN=… -e BUYER_PROFILE=$PWD/examples/buyer-agent/profile.json -- $PWD/scripts/buyer-mcp.sh`. In the prompt, give the product title **exactly** as Amazon.in shows it and the total **including delivery**.
 
 ## Before each take
 
 ```sh
-npm run dev       # API + dashboard on http://127.0.0.1:3000
-npm run worker    # escrow terms, funding observer, DKIM verification on Chainlink CRE (VERIFIER=CRE, local simulation), result submission
+npm run build:web # once after frontend changes
+npm run dev       # API + filler dashboard on http://127.0.0.1:3000 (Launch app → orderbook)
+npm run worker    # escrow terms, funding observer, CRE verification (VERIFIER=CRE), result submission
 ```
 
-Open the dashboard twice (side by side): `http://127.0.0.1:3000/#token=<DEV_BUYER_TOKEN>&persona=buyer` and `…#token=<DEV_FILLER_TOKEN>&persona=filler` (tokens are in `.env`; the fragment never leaves the browser). Have Cardanoscan Preprod open in a tab.
+- **Buyer** = a Claude Code session with the `global-order-book-buyer` MCP server (no buyer dashboard).
+- **Filler** = the dashboard at `http://127.0.0.1:3000/#workspace` → *Connect as filler* with `DEV_FILLER_TOKEN` from `.env`. The order book refreshes every 4 s; rows tagged **SAMPLE** are illustrative and cannot be claimed.
+- Cardanoscan Preprod open in a tab.
 
 ## Shot list
 
 | # | Scene | Do | Say / show |
 |---|---|---|---|
-| 1 | Setup (20s) | Show both dashboards and the labels: *Cardano Preprod · Masumi escrow · LIVE*, *amazon-in · filler checkout · LIVE*, *proof: DKIM email*. | Two agents, one escrow, one proof. Test tokens, real Amazon order. |
-| 2 | Buyer posts (30s) | `npm run buyer -- examples/buyer-agent/purchase.json` | Agent checks merchant allowlist + spending cap, posts the exact item. |
-| 3 | Filler picks + claims (30s) | `npm run filler` | "Compared N orders… chose X (lowest fiat per token)". Claim → filler's node issues escrow terms. |
-| 4 | Buyer funds (cut wait) | Buyer agent: "Escrow terms match policy; funding…" → "Escrow locked". | Open the **lock tx** link from the dashboard on Cardanoscan. ~1–3 min. |
-| 5 | Real checkout (60s) | Filler terminal prints instructions; the recipient name **starts with the GOB code** (e.g. `GOB-7F3KQ2 Alice Doe`) — Amazon.in shows only the first word of the name in its email. Place the order on screen; type the order number. | Filler pays with own card; nothing about the card touches us. |
-| 6 | Proof (45s) | Gmail → ⋮ → Download message; give the `.eml` path. Dashboard: every check turns **PASS**. | Amazon's own DKIM signature + GOB code as the ship-to name + city/state + item + total + timing. |
-| 7 | Result on chain (cut wait) | Timeline: *Result submitted to escrow* → *Dispute window*. Open the result tx. | Escrow now waits out the dispute window. |
-| 8 | Payout (cut ~25 min) | Timeline: *Paid out to filler*. Open the payout tx; show filler wallet on Cardanoscan. | Filler received tUSDM; economics panel shows effective rate. Masumi V2 takes no protocol fee. |
-| 9 | Safety (optional, 45s) | Second order: upload an edited email → **FAIL**, buyer Rejects → refund requested → (cut) **Refunded**. Or restart the filler agent after answering `unsure` → it reconciles and refuses to buy twice. | Fake proof can't get paid; uncertain checkout never double-buys. |
-| 10 | Honest limits (20s) | Slide. | Preprod test tokens; operator-held test wallets on one node; placement (not delivery) is verified; Amazon.in email shows only city/state; verification runs in a local CRE simulation (no DON deployment access yet). |
+| 1 | Setup (20s) | Landing page → *Launch app*. Stats strip: Cardano Preprod · Masumi · Amazon.in · Chainlink CRE. | One order book: agents post, humans fill, CRE verifies, escrow settles. |
+| 2 | Buyer prompts (30s) | Claude: *"Buy me <exact Amazon.in title>, total ₹<price incl. delivery>, pay the filler 2 tUSDM. Fund it as soon as someone claims it."* | The agent checks its policy (merchant allowlist, cap) and posts the order. |
+| 3 | Order appears (15s) | Dashboard: the new row appears live among SAMPLE rows. | Real order next to illustrative ones. |
+| 4 | Filler picks (30s) | Set *Your rate* (e.g. ₹60–95 per tUSDM); out-of-range rows dim; **BEST MATCH** lands on the real order → *Claim* → confirm. | Fillers choose by their own conversion rate. |
+| 5 | Agent funds (cut wait) | Claude: `fund_escrow` → "Lock of 2 tUSDM submitted from the buyer wallet". Dashboard step 2 turns ✓ with the **escrow lock** tx link. | The agent signs with the buyer's own key. Confirmation + Masumi indexing ≈ 5–12 min. |
+| 6 | Real checkout (60s) | Dashboard step 3 shows item, max price and ship-to with copy buttons; the name **starts with the GOB code**. *I'm placing the order now* → buy on Amazon.in (card/UPI) → enter the order number → *Order placed*. | Filler pays with own card; nothing about the card touches us. |
+| 7 | Proof (45s) | Gmail → ⋮ → Download message → drop the `.eml` in step 4 → *Submit proof*. Step 5: 12 checks turn ✓, *Verified on Chainlink CRE (simulation)*. | Amazon's DKIM signature + GOB code + city/state + item + total + timing, checked in a CRE workflow. |
+| 8 | Result on chain (cut wait) | Step 6 shows result due / dispute window; result tx appears under *On-chain*. | Escrow waits out the dispute window. |
+| 9 | Payout (cut) | Step 6 ✓ *Paid*. Open the payout tx; show filler wallet on Cardanoscan. | Filler received tUSDM; Masumi V2 takes no protocol fee. |
+| 10 | Fraud attempt (45s) | Second order: upload an old/other email → CRE **FAIL** (code, name, item, timing ×). Claude: `review_evidence REJECT` → refund requested; filler *Agree to refund* → (cut) **Refunded**. | A genuine-but-wrong email can't get paid; the buyer gets the money back. |
+| 11 | Honest limits (20s) | Slide. | Preprod test tokens; operator-held test wallets on one node; placement (not delivery) is verified; Amazon.in email shows only city/state; CRE runs as a local simulation (no DON deployment access yet). |
 
 ### Timings (from the moment the filler claims)
 
 | Event | When | Source |
 |---|---|---|
-| Pay-by (buyer must lock) | +10 min | coordinator deadline |
-| Result due (order + email + verify) | +60 min (`ESCROW_RESULT_WINDOW_MIN`) | coordinator deadline |
+| Pay-by (buyer must lock) | +`ESCROW_PAY_WINDOW_MIN` (25 min) | coordinator deadline; Masumi indexing can lag ~12 min |
+| Result due (order + email + verify) | +`ESCROW_RESULT_WINDOW_MIN` (45 min now) | coordinator deadline |
 | Unlock | result due + 16 min | Masumi requires ≥ 15 min |
 | Automatic payout to filler | ≈ unlock + 10 min | Masumi auto-withdraw job |
 | Automatic refund if no result | ≈ result due + 10 min | Masumi auto-refund job |
 
-Plan ~1h45m of wall-clock per full take; most of it is cut.
+Plan ~1h of wall-clock per full take; most of it is cut.
 
 ## After recording
 
@@ -76,4 +76,5 @@ You may cancel the Amazon order once the take is done (or let it deliver). Our s
 | `PAY_BY_TOO_CLOSE` | Fund within ~8 min of claiming; otherwise re-post the order. |
 | Funding stays PENDING | Purchasing wallet lacks tUSDM/tADA, or the node's batch job is still running (30 s cycles). Check `node infra/masumi/manage.mjs status`. |
 | Verification INCONCLUSIVE on a real email | Run `node --import tsx scripts/check-eml.ts <file>`; DKIM key fetch or a layout change. The buyer can approve manually (labelled MANUAL). |
-| UI shows nothing | Wrong token in the URL fragment, or API not running. |
+| Dashboard blank at `/` | Run `npm run build:web`, then restart `npm run dev`. |
+| *Connect as filler* rejected | Use `DEV_FILLER_TOKEN` from `.env`; the API must be running. |

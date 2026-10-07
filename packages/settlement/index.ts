@@ -27,5 +27,7 @@ export interface SettlementAdapter {
 export function escrowDeadlines(now: Date, resultWindowMinutes = Number(process.env.ESCROW_RESULT_WINDOW_MIN ?? 60)): Deadlines {
   const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString();
   const result = Math.max(20, resultWindowMinutes);
-  return { payBy: at(10), submitResultBy: at(result), unlockAt: at(result + 16), externalDisputeUnlockAt: at(result + 32) };
+  // Masumi's buyer side must index the lock before payBy (+300 s grace); on Preprod that lag reached ~12 min.
+  const payBy = Math.min(Number(process.env.ESCROW_PAY_WINDOW_MIN ?? 25), result - 5);
+  return { payBy: at(payBy), submitResultBy: at(result), unlockAt: at(result + 16), externalDisputeUnlockAt: at(result + 32) };
 }
