@@ -48,7 +48,7 @@ npm run worker    # escrow terms, funding observer, CRE verification (VERIFIER=C
 | 8 | Result on chain (cut wait) | Step 6 shows result due / dispute window; result tx appears under *On-chain*. | Escrow waits out the dispute window. |
 | 9 | Payout (cut) | Step 6 ✓ *Paid*. Open the payout tx; show filler wallet on Cardanoscan. | Filler received tUSDM; Masumi V2 takes no protocol fee. |
 | 10 | Fraud attempt (45s) | Second order: upload an old/other email → CRE **FAIL** (code, name, item, timing ×). Claude: `review_evidence REJECT` → refund requested; filler *Agree to refund* → (cut) **Refunded**. | A genuine-but-wrong email can't get paid; the buyer gets the money back. |
-| 11 | Honest limits (20s) | Slide. | Preprod test tokens; operator-held test wallets on one node; placement (not delivery) is verified; Amazon.in email shows only city/state; CRE runs as a local simulation (no DON deployment access yet). |
+| 11 | Honest limits (20s) | Slide. | Preprod test tokens; operator-held test wallets on one node; placement (not delivery) is verified; Amazon.in email shows only city/state; CRE runs as a confidential (TEE) workflow in local simulation; deploying needs the Confidential Workflows private beta. |
 
 ### Timings (from the moment the filler claims)
 

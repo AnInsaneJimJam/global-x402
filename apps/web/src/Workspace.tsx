@@ -203,7 +203,7 @@ export function Workspace() {
         <span className="outline-tag live-tag">LIVE TESTNET</span>
         <span>
           Real Amazon.in orders. Escrow in Masumi on Cardano Preprod with test tUSDM. Proofs are
-          checked by a Chainlink CRE workflow (local simulation).
+          checked inside a Chainlink CRE confidential workflow (TEE; local simulation).
         </span>
         <a href="#api" aria-label="View the API">
           <Arrow diagonal />

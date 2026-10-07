@@ -311,7 +311,7 @@ export function OrderDetail({
                   <p>
                     <span className={`verdict verdict-${verification.verdict.toLowerCase()}`}>{verification.verdict}</span>{" "}
                     {verification.execution === "CRE_SIMULATION"
-                      ? "Verified on Chainlink CRE (simulation)"
+                      ? "Verified in a Chainlink CRE confidential workflow (TEE, simulated)"
                       : verification.execution === "MANUAL"
                         ? `Reviewed by the buyer (${label(verdict)})`
                         : label(verification.execution)}

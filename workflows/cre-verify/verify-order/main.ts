@@ -1,9 +1,9 @@
-// Chainlink CRE workflow: verifies a filler's order-confirmation email (DKIM + order checks) on CRE nodes.
-// Trigger: HTTP payload { orderId, sha256 }. Each node fetches the evidence and expected terms from the coordinator,
-// fetches the merchant's DKIM key over DNS-over-HTTPS, and runs the shared dependency-free verifier. Nodes must reach
-// identical consensus on the verdict, which is then posted back to the coordinator (recorded as CRE_SIMULATION here).
-import { consensusIdenticalAggregation, decodeJson, handler, HTTPCapability, HTTPClient, Runner,
-  type HTTPPayload, type HTTPSendRequester, type Runtime } from "@chainlink/cre-sdk";
+// Chainlink CRE Confidential Workflow: verifies a filler's order-confirmation email (DKIM + order checks) inside a TEE.
+// Trigger: HTTP payload { orderId, sha256 }. The enclave fetches the evidence and expected terms from the coordinator,
+// fetches the merchant's DKIM key over DNS-over-HTTPS, runs the shared dependency-free verifier and posts the verdict
+// back (recorded as CRE_SIMULATION here). The email's personal data never leaves the enclave.
+import { decodeJson, handlerInTee, HTTPCapability, HTTPClient, Runner,
+  type HTTPPayload, type TeeRuntime } from "@chainlink/cre-sdk";
 import { dkimKeysNeeded, fromBase64, keyId, toBase64, verifyOrderEmailWithKeys } from "../../../packages/verification/pure";
 import { amazonIn } from "../../../packages/merchants/amazon-in";
 
@@ -13,8 +13,11 @@ const text = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
 const DNS_NAME = /^(?=.{1,253}$)(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
 const MERCHANTS = { "amazon-in": amazonIn } as const;
 
-// Runs on every node; returns the verdict as a canonical JSON string so nodes can agree on it exactly.
-const verifyOnNode = (http: HTTPSendRequester, config: Config, input: Input, token: string, nowIso: string): string => {
+type Http = { sendRequest: (req: { url: string; method: string; headers?: Record<string, string>; body?: string }) => { result: () => { statusCode: number; body: Uint8Array } } };
+
+// Runs inside the TEE: the email (buyer name/address), the coordinator token and the per-check observations never
+// reach node operators. Only the verdict summary leaves the enclave.
+const verifyInEnclave = (http: Http, config: Config, input: Input, token: string, nowIso: string) => {
   const res = http.sendRequest({ url: `${config.apiUrl}/v1/internal/cre/evidence/${input.orderId}?sha256=${input.sha256}`,
     method: "GET", headers: { "x-cre-token": token } }).result();
   if (res.statusCode !== 200) throw new Error(`evidence fetch failed: HTTP ${res.statusCode}`);
@@ -37,30 +40,30 @@ const verifyOnNode = (http: HTTPSendRequester, config: Config, input: Input, tok
     const txt = answers.find(a => a.type === 16 && norm(a.name) === target);
     keys[name] = txt ? [...txt.data.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(m => m[1]).join("") : null;
   }
-  return JSON.stringify(verifyOrderEmailWithKeys({ raw, expected: evidence.expected, merchant, keys, now: new Date(nowIso) }));
+  const result = verifyOrderEmailWithKeys({ raw, expected: evidence.expected, merchant, keys, now: new Date(nowIso) });
+  // The full result (with observed values) goes straight from the enclave to the coordinator.
+  const posted = http.sendRequest({ url: `${config.apiUrl}/v1/internal/verification-results`, method: "POST",
+    headers: { "content-type": "application/json", "x-cre-token": token },
+    body: toBase64(new TextEncoder().encode(JSON.stringify({ orderId: input.orderId, sha256: input.sha256, result })))}).result();
+  return { verdict: result.verdict, checks: result.criteria.map(c => `${c.id}:${c.result}`).join(" "), status: posted.statusCode };
 };
 
-const postResult = (http: HTTPSendRequester, config: Config, body: string, token: string): number =>
-  http.sendRequest({ url: `${config.apiUrl}/v1/internal/verification-results`, method: "POST",
-    headers: { "content-type": "application/json", "x-cre-token": token }, body: toBase64(new TextEncoder().encode(body)) }).result().statusCode;
-
-export const onRequest = (runtime: Runtime<Config>, payload: HTTPPayload): string => {
+export const onRequest = (runtime: TeeRuntime<Config>, payload: HTTPPayload): string => {
   const input = decodeJson(payload.input) as Input;
   if (!/^[a-zA-Z0-9_-]{1,128}$/.test(input.orderId) || !/^[a-f0-9]{64}$/.test(input.sha256)) throw new Error("invalid trigger payload");
+  // Released by the Vault DON only into the attested enclave.
   const token = runtime.getSecret({ id: "CRE_VERIFIER_TOKEN" }).result().value;
-  const nowIso = runtime.now().toISOString();
-  const http = new HTTPClient();
-  const verdict = http.sendRequest(runtime, verifyOnNode, consensusIdenticalAggregation<string>())(runtime.config, input, token, nowIso).result();
-  const status = http.sendRequest(runtime, postResult, consensusIdenticalAggregation<number>())(runtime.config,
-    JSON.stringify({ orderId: input.orderId, sha256: input.sha256, result: JSON.parse(verdict) }), token).result();
-  const { verdict: outcome, criteria } = JSON.parse(verdict) as { verdict: string; criteria: { id: string; result: string }[] };
-  // Only check ids/results leave the workflow log; observed values (names, addresses) stay with the coordinator.
-  const summary = `${outcome} ${criteria.map(c => `${c.id}:${c.result}`).join(" ")}`;
-  runtime.log(`CRE verdict for order ${input.orderId}: ${summary}; coordinator responded ${status}`);
-  return summary;
+  const client = new HTTPClient();
+  const http: Http = { sendRequest: req => client.sendRequest(runtime, req) };
+  const out = verifyInEnclave(http, runtime.config, input, token, runtime.now().toISOString());
+  if (out.status !== 200) throw new Error(`coordinator rejected the verdict: HTTP ${out.status}`);
+  // Simulation-only log (no personal data). In a real enclave, logs never leave the TEE.
+  runtime.log(`CRE confidential verdict for order ${input.orderId}: ${out.verdict} ${out.checks}; coordinator responded ${out.status}`);
+  return `${out.verdict} ${out.checks}`;
 };
 
-export const initWorkflow = () => [handler(new HTTPCapability().trigger({}), onRequest)];
+// Confidential Workflow: the handler executes in an AWS Nitro enclave (the only registered TEE today).
+export const initWorkflow = () => [handlerInTee(new HTTPCapability().trigger({}), onRequest, [{ tee: "nitro", regions: ["us-west-2"] }])];
 
 export async function main() {
   const runner = await Runner.newRunner<Config>();
