@@ -1,6 +1,6 @@
 # Global Order Book — implementation handoff
 
-**As of 7 October 2026 (Asia/Kolkata).** Continue from branch `codex/implementation-handoff` in the private repository `AnInsaneJimJam/global-x402`. The working implementation starts at commit `3167802`; this branch adds the handoff. Treat this document as a navigation and status record. The numbered design documents remain authoritative for product behavior and interfaces.
+**As of 7 October 2026 (Asia/Kolkata).** Continue from branch `feature/agent-control-recovery` in the private repository `AnInsaneJimJam/global-x402`. The working implementation starts at commit `3167802`; this branch adds the handoff. Treat this document as a navigation and status record. The numbered design documents remain authoritative for product behavior and interfaces.
 
 ## One-minute orientation
 
@@ -77,4 +77,4 @@ The published `@x402/cardano@2.28.0` README states its seller authorization dige
 3. In parallel, investigate the cheapest **approved** merchant route. Ask the founder only for merchant onboarding decisions or credentials that cannot be derived from official docs; do not request secrets in chat. Leave the custom merchant as a last resort.
 4. After external behavior is observed, update `docs/00-decisions.md` and this manifest, then replace the corresponding fixture behind the existing typed interface. Add tests for actual invariants, not tests that merely repeat code branches.
 
-For a new agent session, a sufficient instruction is: **“Continue implementation from `codex/implementation-handoff`. Read `docs/HANDOFF.md` and the linked design documents, verify the baseline, then work through the next unmet integration gate. Keep actual and simulated capabilities distinct.”**
+For a new agent session, a sufficient instruction is: **“Continue implementation from `feature/agent-control-recovery`. Read `docs/HANDOFF.md` and the linked design documents, verify the baseline, then work through the next unmet integration gate. Keep actual and simulated capabilities distinct.”**
