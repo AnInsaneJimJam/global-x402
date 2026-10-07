@@ -8,8 +8,42 @@ import { verifyOrderEmail } from '../../../packages/verification/index.js';
 import type { DkimKeyResolver } from '../../../packages/verification/index.js';
 import { dohResolver } from '../../../packages/verification/doh.js';
 import type { JobHandler } from './index.js';
+import type { Store } from '../../../packages/procurement/store.js';
 
 const payload = z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/) });
+
+// What the evidence must show for this order (shared by the local check and the CRE workflow's input).
+export function expectedFor(order: Order, recipient: Recipient | undefined, merchantOrderId: string) {
+  return { orderId: order.id, claimId: order.claimId ?? '', termsHash: order.termsHash, nonce: order.orderNonce ?? '',
+    merchantId: order.intent.merchantId,
+    // Missing recipient leaves these empty, which the verifier treats as UNKNOWN (never PASS).
+    recipientName: recipient && order.orderNonce ? `${order.orderNonce} ${recipient.name}` : '',
+    recipientCity: recipient?.city ?? '', recipientRegion: recipient?.state ?? '',
+    itemMatch: order.intent.itemTitle ?? order.intent.sku, quantity: order.intent.quantity,
+    totalMinor: order.intent.fiatMinor, currency: order.intent.currency,
+    fundedAt: order.fundedAt ?? '', purchaseDeadline: order.escrow?.deadlines.submitResultBy ?? '', merchantOrderId };
+}
+
+// Records a verdict for the evidence that is still current; PASS enqueues the escrow result in the same transaction.
+export async function recordVerification(store: Store, orderId: string, sha256: string,
+  result: Pick<Verification, 'verdict' | 'criteria' | 'reasonCodes' | 'evidenceHash' | 'observedAt'>, execution: Verification['execution']) {
+  return store.transaction(async db => {
+    const order = (await db.query<{ data: Order }>('SELECT data FROM gob_orders WHERE id=$1 FOR UPDATE', [orderId])).rows[0]?.data;
+    const current = order && typeof order.evidence === 'object' ? order.evidence : null;
+    if (!order || current?.sha256 !== sha256 || order.verification || result.evidenceHash !== sha256) return false;
+    const decided = { verdict: result.verdict, execution, criteria: result.criteria, reasonCodes: result.reasonCodes,
+      evidenceHash: result.evidenceHash, observedAt: result.observedAt };
+    const verification: Verification = { ...decided, resultHash: resultHashOf(order, decided) };
+    order.verification = verification;
+    order.version++;
+    await db.query('UPDATE gob_orders SET data=$2 WHERE id=$1', [order.id, order]);
+    if (verification.verdict === 'PASS') {
+      await enqueue(db, { kind: 'submit_result', orderId: order.id,
+        dedupeKey: `result:${order.id}:${verification.resultHash}`, payload: { resultHash: verification.resultHash } });
+    }
+    return true;
+  });
+}
 
 // Runs the DKIM verifier for the currently submitted evidence. Verification (network) happens outside
 // any transaction; the result is written under the order lock only if that evidence is still current.
