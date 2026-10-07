@@ -17,6 +17,13 @@ export type EmailVerification = {
 
 // Headers that must be covered by the signature so the facts we read cannot be swapped.
 const SIGNED_HEADERS = ['from', 'date', 'subject'];
+// Raw header block up to the first empty line (CRLF or LF line endings).
+function headerBlock(raw: Buffer) {
+  const text = raw.toString('latin1');
+  const end = text.search(/\r?\n\r?\n/);
+  return end === -1 ? text : text.slice(0, end);
+}
+const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 function noKey(): never { throw Object.assign(new Error('no key'), { code: 'ENOTFOUND' }); }
 
 // Pure check of an order-confirmation email against the accepted order. No signing authority,
@@ -39,19 +46,27 @@ export async function verifyOrderEmail(i: {
   const valid = ours.find(r => r.status.result === 'pass' && !r.canonBodyLengthLimited &&
     SIGNED_HEADERS.every(header => (r.signingHeaders?.keys ?? '').toLowerCase().split(/[:\s]+/).includes(header)));
   const transient = ours.some(r => r.status.result === 'temperror' || r.status.comment === 'no key');
-  // DKIM covers the last copy of a header while the MIME parser may read the first, so an unsigned
-  // duplicate (e.g. a forged Date on an old genuine email) must not survive.
-  const count = (name: string) => dkim.headers?.parsed.filter(h => h.key === name).length ?? 0;
-  const singleHeaders = SIGNED_HEADERS.every(name => count(name) === 1) &&
+  const mail = await simpleParser(raw);
+  // Two parsers read this message (mailauth for DKIM, mailparser for the body). Any header they could
+  // split differently, or an unsigned duplicate (DKIM covers the last copy, parsers may read the first),
+  // could smuggle a forged value past the signature. Require a clean, identical, de-duplicated header view.
+  const authHeaders = dkim.headers?.parsed ?? [];
+  const head = headerBlock(raw);
+  const count = (name: string) => authHeaders.filter(h => h.key === name).length;
+  const consistentHeaders = !/\r(?!\n)/.test(head) && head.split(/\r?\n/).every(line => /^[\x21-\x39\x3b-\x7e \t]/.test(line)) &&
+    authHeaders.length === mail.headerLines.length && authHeaders.every((h, n) => h.key === mail.headerLines[n]?.key) &&
+    SIGNED_HEADERS.every(name => count(name) === 1) &&
     ['content-type', 'content-transfer-encoding'].every(name => count(name) <= 1);
-  const dkimResult = valid && singleHeaders && fromDomain && allowed.has(fromDomain) ? 'PASS' :
+  const dkimResult = valid && consistentHeaders && fromDomain && allowed.has(fromDomain) ? 'PASS' :
     !valid && transient ? 'UNKNOWN' : 'FAIL';
 
-  const mail = await simpleParser(raw);
   const text = mail.text ?? '';
   let facts: ExtractedOrder = { merchantOrderId: null, items: [], recipientName: null, total: null };
   try { facts = i.merchant.extract(text); } catch { /* unrecognised layout leaves facts UNKNOWN */ }
-  const placedAt = mail.date && !Number.isNaN(mail.date.getTime()) ? mail.date : null;
+  // Date comes from the same parsed header row the signature covers, not from the second parser.
+  const dateLine = authHeaders.find(h => h.key === 'date')?.line.toString('latin1');
+  const parsedDate = dateLine ? new Date(dateLine.replace(/^date:/i, '').replace(/\r?\n[ \t]+/g, ' ').trim()) : null;
+  const placedAt = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null;
   const e = i.expected;
   const check = (id: string, expected: string, observed: string | null, ok: boolean): Criterion =>
     ({ id, expected, observed, result: observed === null ? 'UNKNOWN' : ok ? 'PASS' : 'FAIL' });
@@ -64,9 +79,9 @@ export async function verifyOrderEmail(i: {
     // The nonce binds the delivery recipient, so it must be in the merchant's ship-to name.
     check('NONCE', e.nonce, facts.recipientName === null ? null : facts.recipientName.includes(e.nonce) ? e.nonce : 'absent',
       !!facts.recipientName?.includes(e.nonce)),
-    // Exactly one purchased line, and it must be the accepted item.
+    // Exactly one purchased line, and it must be the accepted item exactly (no substring: "X (Pack of 24)" ≠ "X").
     check('ITEM', e.itemMatch, item ? item.name : facts.items.length ? `${facts.items.length} item lines` : null,
-      !!item?.name.toLowerCase().includes(e.itemMatch.toLowerCase())),
+      !!item && normalize(item.name) === normalize(e.itemMatch)),
     check('QUANTITY', String(e.quantity), item ? String(item.quantity) : null, item?.quantity === e.quantity),
     check('TOTAL', `${e.currency} ${e.totalMinor}`, total, total === `${e.currency} ${e.totalMinor}`),
     check('MERCHANT_ORDER_ID', 'present', facts.merchantOrderId, true),

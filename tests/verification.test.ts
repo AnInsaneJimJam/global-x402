@@ -55,6 +55,7 @@ test('genuine email with wrong order facts fails the matching criterion', async 
     ['INR 50.00', 'SGD 50.00', 'TOTAL'],
     ['330ml x 1', '330ml x 2', 'QUANTITY'],
     ['Coca-Cola Original 330ml', 'Pepsi 330ml', 'ITEM'],
+    ['Coca-Cola Original 330ml x 1', 'Coca-Cola Original 330ml (Pack of 24) x 1', 'ITEM'],
     // Item named only in a recommendation, nonce only in a gift message, extra item line.
     ['Item: Coca-Cola Original 330ml x 1', 'Item: Pepsi 330ml x 1\r\nCustomers also bought: Coca-Cola Original 330ml', 'ITEM'],
     ['Ship to: Alice Doe GOB-7F3K,', 'Gift message: GOB-7F3K\r\nShip to: Mallory,', 'NONCE'],
@@ -82,6 +83,15 @@ test('duplicated security headers are rejected (forged unsigned Date prepended t
   const result = await verify(forged);
   assert.equal(result.verdict, 'FAIL');
   assert.ok(failed(result).includes('DKIM_SIGNATURE'));
+});
+
+test('malformed header lines that parsers may split differently are rejected', async () => {
+  const old = await sign(orderEmail({ date: 'Wed, 07 Oct 2026 08:00:00 +0000' }), key.privateKey);
+  for (const prefix of ['X-Note: a\rDate: Wed, 07 Oct 2026 10:00:00 +0000\r\n', 'ÿDate: Wed, 07 Oct 2026 10:00:00 +0000\r\n']) {
+    const result = await verify(Buffer.concat([Buffer.from(prefix, 'latin1'), old]));
+    assert.equal(result.verdict, 'FAIL');
+    assert.ok(failed(result).includes('DKIM_SIGNATURE'));
+  }
 });
 
 test('missing key or DNS outage is INCONCLUSIVE, never PASS', async () => {
