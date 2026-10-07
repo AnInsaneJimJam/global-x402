@@ -6,7 +6,7 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 
 | Task | State | Notes / link |
 |---|---|---|
-| B0 Real-email check (Amazon.in) | WAITING ON ISHAAN | Download one Amazon.in confirmation (Gmail → Show original → Download original), run `node --import tsx scripts/check-eml.ts <file.eml>`, paste the JSON (it has no personal data) below. Keep the .eml outside the repo |
+| B0 Real-email check (Amazon.in) | DONE (old email) | Findings below. Live DKIM PASS still to confirm on a recent email |
 | B1 DKIM verifier | DONE | `packages/verification/{index,doh}.ts`, 8 tests in `tests/verification.test.ts` (synthetic emails, test-generated key). `mailauth@7.1.1` + `mailparser@3.9.36` (MIT, pinned) |
 | B2 Merchant configs | DONE (amazon-in) | `packages/merchants/amazon-in.ts` + `tests/amazon-in.test.ts`; `amazon-sg` after first SG order |
 | B3 Nonce + recipient + assignment | NOT STARTED | Needs A0 |
