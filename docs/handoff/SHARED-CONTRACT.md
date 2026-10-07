@@ -150,4 +150,6 @@ The Masumi node's own secrets (`ADMIN_KEY`, `ENCRYPTION_KEY`, its Blockfrost key
 | Date | By | Change |
 |---|---|---|
 | 2026-10-07 | Handoff | Initial contract. Masumi route mapping provisional pending A2. |
+| 2026-10-07 | Track A | A0 foundation adds the v0.2 contract fields and vocabulary. Existing MOCK `NOT_IMPLEMENTED` outcomes and string evidence remain transitional until Track B replaces the fixture evidence path. |
+| 2026-10-07 | Track A | Worker handlers receive `(job, store)` so Track B can update verification and enqueue settlement in one database transaction without changing worker dispatch. |
 | 2026-10-07 | Track B | `expected.itemMatch` is compared by **exact** normalized equality (case/whitespace/NFKC) against the single extracted item line, not as a substring. Track A: pass the accepted item name exactly as the merchant shows it. Verifier internals only otherwise (header consistency checks); no signature change. |

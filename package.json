@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bash scripts/test-local.sh",
     "dev": "node --env-file-if-exists=.env --import tsx apps/api/main.ts",
+    "worker": "node --env-file-if-exists=.env --import tsx apps/worker/main.ts",
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
     "demo": "node --env-file-if-exists=.env --import tsx examples/control-demo.ts",
     "contracts:generate": "node --import tsx scripts/generate-contracts.ts",
