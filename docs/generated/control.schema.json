@@ -4,7 +4,7 @@
   "properties": {
     "schemaVersion": {
       "type": "string",
-      "const": "0.1.0"
+      "const": "0.2.0"
     },
     "scope": {
       "type": "object",
@@ -67,7 +67,7 @@
           "properties": {
             "protocol": {
               "type": "string",
-              "const": "X402_MASUMI"
+              "const": "MASUMI_NATIVE"
             },
             "network": {
               "type": "string",
@@ -75,29 +75,52 @@
             },
             "execution": {
               "type": "string",
-              "const": "MOCK"
+              "enum": [
+                "LIVE",
+                "MOCK"
+              ]
+            },
+            "custody": {
+              "type": "string",
+              "const": "OPERATOR_HELD_TEST_WALLETS"
             }
           },
           "required": [
             "protocol",
             "network",
-            "execution"
+            "execution",
+            "custody"
           ],
           "additionalProperties": false
         },
         "merchant": {
           "type": "object",
           "properties": {
+            "id": {
+              "type": "string",
+              "enum": [
+                "amazon-in",
+                "amazon-sg",
+                "fixture-merchant"
+              ]
+            },
             "environment": {
               "type": "string",
-              "const": "MOCK"
+              "enum": [
+                "LIVE",
+                "MOCK"
+              ]
             },
             "checkout": {
               "type": "string",
-              "const": "AUTOMATED"
+              "enum": [
+                "HUMAN_ASSISTED",
+                "AUTOMATED"
+              ]
             }
           },
           "required": [
+            "id",
             "environment",
             "checkout"
           ],
@@ -108,7 +131,12 @@
           "properties": {
             "execution": {
               "type": "string",
-              "const": "MOCK"
+              "enum": [
+                "APP_WORKER_DKIM",
+                "MANUAL",
+                "CRE_SIMULATION",
+                "MOCK"
+              ]
             }
           },
           "required": [
@@ -156,11 +184,30 @@
         },
         "verification": {
           "type": "string",
-          "const": "NOT_IMPLEMENTED"
+          "enum": [
+            "NOT_IMPLEMENTED",
+            "NOT_STARTED",
+            "PENDING",
+            "PASS",
+            "FAIL",
+            "INCONCLUSIVE",
+            "MANUAL_APPROVED",
+            "MANUAL_REJECTED"
+          ]
         },
         "settlement": {
           "type": "string",
-          "const": "NOT_IMPLEMENTED"
+          "enum": [
+            "NOT_IMPLEMENTED",
+            "NONE",
+            "RESULT_PENDING",
+            "DISPUTE_WINDOW",
+            "SETTLEMENT_PENDING",
+            "PAID",
+            "REFUND_PENDING",
+            "REFUNDED",
+            "DISPUTED"
+          ]
         },
         "goal": {
           "type": "string",
@@ -197,15 +244,61 @@
               },
               "sourceType": {
                 "type": "string",
-                "const": "MOCK_CHAIN"
+                "enum": [
+                  "MASUMI_NODE",
+                  "CHAIN_OBSERVER",
+                  "ACTOR_REPORT",
+                  "DKIM_EMAIL",
+                  "MANUAL_REVIEW",
+                  "MOCK_CHAIN"
+                ]
               },
               "value": {
                 "type": "string",
                 "enum": [
                   "NOT_OBSERVED",
-                  "CONFIRMED"
+                  "PENDING",
+                  "CONFIRMED",
+                  "RECONCILING"
                 ]
               }
+            },
+            "required": [
+              "key",
+              "state",
+              "sourceType",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "const": "escrow"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "OBSERVED",
+                  "NOT_OBSERVED",
+                  "UNKNOWN",
+                  "CONTRADICTED"
+                ]
+              },
+              "sourceType": {
+                "type": "string",
+                "enum": [
+                  "MASUMI_NODE",
+                  "CHAIN_OBSERVER",
+                  "ACTOR_REPORT",
+                  "DKIM_EMAIL",
+                  "MANUAL_REVIEW",
+                  "MOCK_CHAIN"
+                ]
+              },
+              "value": {}
             },
             "required": [
               "key",
@@ -233,7 +326,14 @@
               },
               "sourceType": {
                 "type": "string",
-                "const": "ACTOR_REPORT"
+                "enum": [
+                  "MASUMI_NODE",
+                  "CHAIN_OBSERVER",
+                  "ACTOR_REPORT",
+                  "DKIM_EMAIL",
+                  "MANUAL_REVIEW",
+                  "MOCK_CHAIN"
+                ]
               },
               "value": {
                 "anyOf": [
@@ -290,6 +390,117 @@
               "value"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "const": "evidence"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "OBSERVED",
+                  "NOT_OBSERVED",
+                  "UNKNOWN",
+                  "CONTRADICTED"
+                ]
+              },
+              "sourceType": {
+                "type": "string",
+                "enum": [
+                  "MASUMI_NODE",
+                  "CHAIN_OBSERVER",
+                  "ACTOR_REPORT",
+                  "DKIM_EMAIL",
+                  "MANUAL_REVIEW",
+                  "MOCK_CHAIN"
+                ]
+              },
+              "value": {}
+            },
+            "required": [
+              "key",
+              "state",
+              "sourceType",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "const": "verification"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "OBSERVED",
+                  "NOT_OBSERVED",
+                  "UNKNOWN",
+                  "CONTRADICTED"
+                ]
+              },
+              "sourceType": {
+                "type": "string",
+                "enum": [
+                  "MASUMI_NODE",
+                  "CHAIN_OBSERVER",
+                  "ACTOR_REPORT",
+                  "DKIM_EMAIL",
+                  "MANUAL_REVIEW",
+                  "MOCK_CHAIN"
+                ]
+              },
+              "value": {}
+            },
+            "required": [
+              "key",
+              "state",
+              "sourceType",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "const": "settlement"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "OBSERVED",
+                  "NOT_OBSERVED",
+                  "UNKNOWN",
+                  "CONTRADICTED"
+                ]
+              },
+              "sourceType": {
+                "type": "string",
+                "enum": [
+                  "MASUMI_NODE",
+                  "CHAIN_OBSERVER",
+                  "ACTOR_REPORT",
+                  "DKIM_EMAIL",
+                  "MANUAL_REVIEW",
+                  "MOCK_CHAIN"
+                ]
+              },
+              "value": {}
+            },
+            "required": [
+              "key",
+              "state",
+              "sourceType",
+              "value"
+            ],
+            "additionalProperties": false
           }
         ]
       }
@@ -307,7 +518,9 @@
           },
           "assetId": {
             "type": "string",
-            "const": "fixture:test-token"
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[a-zA-Z0-9:._-]+$"
           },
           "units": {
             "type": "string",
@@ -335,9 +548,17 @@
           "type": {
             "type": "string",
             "enum": [
+              "FUND_ESCROW",
+              "PLACE_ORDER",
               "RECONCILE_PURCHASE",
+              "SUBMIT_EVIDENCE",
               "VERIFY_EVIDENCE",
-              "SUBMIT_EVIDENCE"
+              "REVIEW_EVIDENCE",
+              "SUBMIT_RESULT",
+              "MONITOR_DISPUTE_WINDOW",
+              "REQUEST_REFUND",
+              "AUTHORIZE_REFUND",
+              "COLLECT"
             ]
           },
           "owner": {
@@ -375,8 +596,14 @@
           "command": {
             "type": "string",
             "enum": [
+              "create_intent",
+              "claim",
               "register_purchase",
-              "fund_escrow"
+              "submit_evidence",
+              "fund_escrow",
+              "review_evidence",
+              "request_refund",
+              "authorize_refund"
             ]
           },
           "status": {

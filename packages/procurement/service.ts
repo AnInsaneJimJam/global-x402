@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { commandSchema, controlSchema, hash, DomainError, integration } from '../contracts/index.js';
 import type { Actor, Command, Order, Plan, Receipt } from '../contracts/index.js';
+import { handlers } from './commands/index.js';
 import { Store } from './store.js';
 
 type Clock = () => Date;
@@ -20,33 +21,11 @@ export class Procurement {
     return row.rows[0]?.data ?? fail('NOT_FOUND', 404);
   }
 
-  private eligible(actor: Actor, command: Command, order: Order | null) {
-    if (command.command === 'create_intent') {
-      if (actor.role !== 'BUYER') fail('ROLE_FORBIDDEN', 403);
-      if (BigInt(command.input.fiatMinor) <= 0n || BigInt(command.input.netTokenUnits) <= 0n) fail('INVALID_AMOUNT', 422);
-      return;
-    }
-    if (!order) fail('NOT_FOUND', 404);
-    if (command.command === 'claim') {
-      if (actor.role !== 'FILLER') fail('ROLE_FORBIDDEN', 403);
-      if (order.fillerId) fail('ALREADY_CLAIMED');
-      return;
-    }
-    if (actor.role !== 'FILLER' || order.fillerId !== actor.id) fail('NOT_FOUND', 404);
-    if (order.funding !== 'CONFIRMED') fail('FUNDING_NOT_CONFIRMED');
-    if (command.command === 'register_purchase') {
-      if (order.purchase) fail(order.purchase.state === 'ORDERED' ? 'PURCHASE_ALREADY_PLACED' : 'UNRESOLVED_PURCHASE');
-    } else {
-      if (order.purchase?.state !== 'ORDERED' || order.purchase.operationId !== command.purchaseOperationId ||
-        order.purchase.merchantOrderId !== command.merchantOrderId) fail('PURCHASE_REFERENCE_MISMATCH');
-    }
-  }
-
   async prepare(actor: Actor, input: unknown): Promise<Plan> {
     const command = commandSchema.parse(input);
     return this.store.transaction(async db => {
       const order = 'orderId' in command ? await this.order(db, command.orderId) : null;
-      this.eligible(actor, command, order);
+      handlers[command.command].eligible(actor, order, command);
       const plan: Plan = {
         id: randomUUID(), actor, command,
         effectHash: hash({ actor, command, termsHash: order?.termsHash ?? null, claimId: order?.claimId ?? null }),
@@ -85,39 +64,15 @@ export class Procurement {
       if (this.clock().getTime() >= Date.parse(plan.expiresAt)) fail('PLAN_EXPIRED');
       const command = plan.command;
       let order: Order;
+      const handler = handlers[command.command];
       if (command.command === 'create_intent') {
-        this.eligible(actor, command, null);
-        // Serializes client-order uniqueness independently of transport operation IDs.
-        await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`intent:${actor.id}:${command.input.clientOrderId}`]);
-        const existing = await db.query('SELECT id FROM gob_orders WHERE buyer_id=$1 AND client_order_id=$2', [actor.id, command.input.clientOrderId]);
-        if (existing.rowCount) fail('CLIENT_ORDER_CONFLICT');
-        order = { id: randomUUID(), buyerId: actor.id, intent: command.input, termsHash: hash(command.input),
-          version: 1, fillerId: null, claimId: null, funding: 'NOT_OBSERVED', purchase: null, evidence: null };
-        await db.query('INSERT INTO gob_orders(id,buyer_id,client_order_id,data) VALUES ($1,$2,$3,$4)',
-          [order.id, actor.id, command.input.clientOrderId, order]);
+        handler.eligible(actor, null, command);
+        order = await handler.apply(db, actor, null, command);
       } else {
         order = await this.order(db, command.orderId, true);
         if (plan.controlVersion !== order.version) fail('STALE_PLAN');
-        this.eligible(actor, command, order);
-        if (command.command === 'claim') {
-          order.fillerId = actor.id; order.claimId = randomUUID();
-          order.termsHash = hash({ intent: order.intent, buyerId: order.buyerId, fillerId: order.fillerId, claimId: order.claimId });
-        } else if (command.command === 'register_purchase') {
-          const binding = await db.query('INSERT INTO gob_purchase_bindings(actor_id,purchase_operation_id,order_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING order_id',
-            [actor.id, command.purchaseOperationId, order.id]);
-          if (!binding.rowCount) fail('PURCHASE_OPERATION_CONFLICT');
-          order.purchase = { operationId: command.purchaseOperationId, state: 'PREPARED', merchantOrderId: null };
-        } else {
-          // Global evidence uniqueness is a DB invariant, including simultaneous submissions.
-          const binding = await db.query<{ order_id: string }>(
-            'INSERT INTO gob_evidence_bindings(merchant_id,merchant_order_id,order_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING order_id',
-            [order.intent.merchantId, command.merchantOrderId, order.id]);
-          if (!binding.rowCount) {
-            const prior = await db.query<{ order_id: string }>('SELECT order_id FROM gob_evidence_bindings WHERE merchant_id=$1 AND merchant_order_id=$2', [order.intent.merchantId, command.merchantOrderId]);
-            if (prior.rows[0]?.order_id !== order.id) fail('EVIDENCE_REPLAY');
-          }
-          order.evidence = command.merchantOrderId;
-        }
+        handler.eligible(actor, order, command);
+        order = await handler.apply(db, actor, order, command);
         order.version++;
         await db.query('UPDATE gob_orders SET data=$2 WHERE id=$1', [order.id, order]);
       }
@@ -156,7 +111,7 @@ export class Procurement {
       const uncertain = order.purchase && ['PREPARED', 'SUBMITTING', 'UNKNOWN'].includes(order.purchase.state);
       const placed = order.purchase?.state === 'ORDERED';
       return controlSchema.parse({
-        schemaVersion: '0.1.0', scope: { kind: 'order', id: order.id }, viewer: actor,
+        schemaVersion: '0.2.0', scope: { kind: 'order', id: order.id }, viewer: actor,
         controlVersion: order.version, generatedAt: this.clock().toISOString(), integration,
         termsHash: order.termsHash, claimId: order.claimId,
         summary: uncertain ? 'Reconcile the registered purchase; new checkout is blocked.' : placed ?

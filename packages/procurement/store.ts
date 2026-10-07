@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import pg from 'pg';
 
 export class Store {
@@ -8,7 +8,11 @@ export class Store {
     this.pool = new pg.Pool({ connectionString, max: 8, options: `-c search_path=${schema}` });
   }
   async migrate() {
-    await this.pool.query(await readFile(new URL('./schema.sql', import.meta.url), 'utf8'));
+    const directory = new URL('./migrations/', import.meta.url);
+    const files = (await readdir(directory)).filter(file => file.endsWith('.sql')).sort();
+    for (const file of files) {
+      await this.pool.query(await readFile(new URL(file, directory), 'utf8'));
+    }
   }
   async transaction<T>(fn: (db: pg.PoolClient) => Promise<T>): Promise<T> {
     const db = await this.pool.connect();
