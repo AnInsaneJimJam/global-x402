@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import Fastify from 'fastify';
 import type { FastifyRequest } from 'fastify';
@@ -68,7 +69,9 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   // Separate credential (CRE_VERIFIER_TOKEN); disabled when unset. Verdicts are recorded as CRE_SIMULATION.
   const creAuth = (request: FastifyRequest) => {
     const expected = process.env.CRE_VERIFIER_TOKEN;
-    if (!expected || expected.length < 32 || request.headers['x-cre-token'] !== expected) throw new DomainError('NOT_FOUND', 404);
+    const given = request.headers['x-cre-token'];
+    const digest = (v: string) => createHash('sha256').update(v).digest();
+    if (!expected || expected.length < 32 || typeof given !== 'string' || !timingSafeEqual(digest(given), digest(expected))) throw new DomainError('NOT_FOUND', 404);
   };
   app.get<{ Params: { id: string }; Querystring: { sha256?: string } }>('/v1/internal/cre/evidence/:id', async request => {
     creAuth(request);
