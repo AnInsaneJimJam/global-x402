@@ -40,6 +40,16 @@ Normalize fields with versioned rules. Hash JSON using a documented canonicaliza
 
 Return `PASS`, `FAIL`, or `INCONCLUSIVE` plus machine-readable reasons. Missing data, source outage, HTTP throttling, disagreement or stale evidence is `INCONCLUSIVE`, not approval and not proof of fraud. Retry within the remaining deadlines with bounded backoff. If insufficient time remains, enter review/refund handling according to available signer authority.
 
+## Evidence legibility and bounded verification work
+
+Expose the predicate as a compact criterion table: criterion ID, expected commitment/reference, observed value/reference, provenance, freshness and `PASS/FAIL/UNKNOWN`. Redact private values by role. A caller can expand the one failed criterion without fetching every receipt or re-running the full workflow. Confidence percentages or LLM-generated explanations never substitute for source-backed criterion outcomes.
+
+Separate evidence authenticity, relevance to this exact order and sufficiency for the accepted predicate. A genuine receipt for another recipient fails relevance; a matching screenshot still fails authoritative provenance. The control view records each distinction and the native settlement eligibility separately. A `PASS` verdict is a point-in-time observation, not a prediction that the merchant will never cancel.
+
+Cache verification by order/claim/terms, evidence digest, accepted predicate version, merchant observation version and source freshness policy. Duplicate identical jobs reuse the receipt within those bounds. New cancellation data, changed evidence or expired required freshness invalidates reuse. New default predicates apply to new commitments; old orders retain their pinned agreement. A revoked unsafe verifier creates a visible hold/protection obligation, not silent replacement of accepted terms. Do not query CRE or the merchant on every status read, and do not cache acceptance indefinitely. A source outage yields visible uncertainty; reaching a call/retry budget creates an intervention/protection obligation rather than automatic approval.
+
+Record concise decision justifications consisting of applicable rule, decisive fact references and result. No private model reasoning transcript is needed. Merchant text, upload contents and retrieved documentation remain untrusted data: they cannot supply tool instructions, change signer destinations or become policy through an automatically generated summary. The evidence, control view and reusable integration knowledge have distinct provenance and update rights.
+
 ## CRE workflow
 
 1. Authenticated trigger identifies `orderId`, `claimId`, `evidenceId`, `policyVersion` and a fresh `requestNonce`.
@@ -97,6 +107,8 @@ After final seller collection, later merchant refunds/chargebacks have no automa
 - The backend accepts only allowlisted merchant/provider hosts and fixed endpoint templates; reject SSRF, redirects to private hosts, and filler-selected verification URLs.
 - Signing keys are scoped by actor. Authentication tokens never allow changing the seller address after funding.
 - Buyer monitoring tests include malicious seller result submission outside the application.
+- Control-view actions are recomputed when decisive evidence changes; cached verdicts and stale prepared actions cannot authorize a superseded claim or contradicted purchase.
+- Reconciliation and protection deadlines remain visible even when a model session ends or a verification request exhausts its resource budget.
 - Logs contain no seed phrases, raw payment cards, merchant passwords or street addresses.
 
 Operational readiness for real purchases additionally requires merchant terms, privacy/retention obligations and applicable payment activity requirements to be assessed for the chosen region. This pack makes no claim of worldwide launch authorization or regulatory status.

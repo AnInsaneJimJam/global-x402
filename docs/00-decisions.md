@@ -24,7 +24,13 @@ This is the authoritative decision register. Confirmed decisions reflect the use
 
 **C — Additional contract, lock first with later filler assignment (not selected).** This would need an additional reviewed orderbook contract and a demonstrated Masumi composition. Retained for future design context; custom assignable escrow is outside the MVP.
 
-Documents 01–06 specify **A as the selected architecture**. Research notes may discuss alternatives; those discussions do not override this decision. Any future change to B or C requires an explicit product decision and corresponding revisions to architecture, API, economics and tests.
+Documents 01–07 specify **A as the selected architecture**. Research notes may discuss alternatives; those discussions do not override this decision. Any future change to B or C requires an explicit product decision and corresponding revisions to architecture, API, economics and tests.
+
+## Agent-system design decision
+
+The user requested a coherent agent-first system, accurate control and minimal resource expenditure. The design now uses a shared control view, typed inspect/act interface, prepared effects, durable operation receipts and deterministic actor-local runners. [Document 07](07-agent-system.md) owns these interaction requirements. This implements the selected product architecture without changing custody, the payout predicate, accepted delivery risk or upstream protocol semantics.
+
+Capability discovery and reusable adapter knowledge are versioned and grounded in conformance evidence. They cannot confer signing authority or replace integration gates. The design is selected; implementation and operational performance remain untested.
 
 ## Resolved design proposals independent of those answers
 
@@ -45,9 +51,10 @@ Documents 01–06 specify **A as the selected architecture**. Research notes may
 | G1 — x402 escrow | Pinned Cardano `exact` scheme with Masumi method; reproducible 402 → signed payment → confirmed lock trace; payment header interoperability checked against selected facilitator/client. |
 | G2 — identity and recipient | Provisioned buyer/seller identities; demonstrated seller key/address binding; confirmed mapping to filler payout destination. |
 | G3 — release authority | Tested current validator/Node: who can submit result, who can collect, which clock bounds apply, refund route, dispute authority, all fees. Establish whether CRE is advisory or actually enforced. |
-| G4 — evidence | Merchant test credential/source, captured order fixture, demonstrated independent lookup, immutable order-to-recipient binding. |
+| G4 — evidence | Merchant test credential/source, recorded order fixture, demonstrated independent lookup, immutable order-to-recipient binding. |
 | G5 — CRE | Installed compatible CLI/SDK; successful workflow simulation; deployed access and report-consumption method separately established. |
 | G6 — economics | Real protocol fee rules and ADA costs/minimum UTXO requirements measured; quote funds the promised filler net receipt. |
+| G7 — agent control | Fresh-session recovery of buyer/filler obligations; stale-plan rejection; actor-local/coordinator checkout reconciliation; deadline-aware deterministic waiting; authority scopes and generated schema consistency; measured context/call budgets. Mock traces validate the interface, while external claims still require G1–G6. |
 
 **Known G1/G3 incompatibility:** the official Cardano x402 SDK currently uses an authorization payload that the standard Masumi Node rejects for purchase initialization. The target x402 flow therefore requires tested x402-aware lifecycle tooling. A native MIP-003 fallback is a distinct integration mode, not an interchangeable driver. See [research](research/masumi-x402.md).
 
@@ -60,6 +67,7 @@ The research documents contain upstream evidence, not executed integration tests
 - [ ] G4–G6 have viable tested inputs and an agreed fallback scope.
 - [ ] Payout trigger, fees, cancellation policy, and dispute deadlines are visible to both parties.
 - [ ] All simulated components and remaining central trust are named.
+- [ ] G7 control/recovery scenarios and resource measurements pass; no new agent interface hides an unresolved external capability.
 - [ ] Milestone ownership is assigned when builders start; no fixed deadline is assumed.
 
-Until then, the agent may build neutral order models, interface skeletons, and test fixtures under labeled mocks; it must not fill unresolved settlement details with invented APIs or guarantees.
+Once implementation is separately authorized, unresolved gates permit only neutral order models, interface skeletons, and test fixtures under labeled mocks; the agent must not fill unresolved settlement details with invented APIs or guarantees. The current request stops after documentation.

@@ -1,10 +1,31 @@
 # Architecture
 
-## Boundaries
+## System structure
 
 The original diagram is [preserved here](assets/original-architecture.png). Its central box combines functions that must be distinct in implementation: orderbook state, on-chain escrow, evidence checking, and the authority to submit a settlement transaction.
 
 The following is the user-selected architecture A: match a filler before funding escrow directly to that filler. Platform collection and onward payout are outside the selected money flow.
+
+The unifying domain model is **goal → commitment → obligation → action → observation → outcome**, with references linking every level to the accepted terms and durable operations. [Document 07](07-agent-system.md) defines the interaction model. These levels are views of shared domain records, not separately deployed systems. The coordinator's projection and each actor's private journal jointly form the agent's control view; source ownership is retained rather than flattened into an unquestionable server status.
+
+```mermaid
+flowchart TB
+    G[Bounded buyer or filler goal] --> R[Actor runtime: policy, journal, deadlines]
+    R --> I[Typed inspect and act interface]
+    I --> P[Procurement module: commitments and obligations]
+    P --> V[Verification module: evidence and provenance]
+    P --> S[Settlement module: native lifecycle and observations]
+    R --> M[Actor-owned checkout and wallet adapters]
+    V --> C[Merchant read and CRE adapters]
+    S --> N[Cardano and payment adapters]
+    C --> O[Normalized observations]
+    N --> O
+    M --> O
+    O --> P
+    P --> I
+```
+
+The following deployment view shows where these modules execute and which external systems they touch. Logical module structure and deployment are distinct; this is not a mandate for a microservice per box.
 
 ```mermaid
 flowchart LR
@@ -28,13 +49,26 @@ flowchart LR
     C --> FW[Filler wallet]
 ```
 
-For native MIP-003 fallback, buyer/seller Masumi Nodes replace the x402-specific funding/lifecycle path. Name the active mode in configuration; a successful test of one mode does not validate the other.
+For native MIP-003 fallback, buyer/seller Masumi Nodes replace the x402-specific funding/lifecycle path. Name the selected payment protocol in configuration; a successful test of one protocol does not validate the other. [IntegrationIdentity in document 04](04-api-and-data.md) separately describes protocol, network, merchant environment and verifier execution.
 
-## Components and proposed implementation stack
+## Deep modules and implementation stack
 
 Use a TypeScript workspace: React/Next.js filler dashboard, a small Fastify API, a separate Node worker, PostgreSQL, S3-compatible private object storage, and a TypeScript CRE workflow compiled with its required supported toolchain. Use one database outbox/job table initially; add a separate queue only if required by measured behavior. The Cardano provider, wallet connector and SDK versions are chosen by G1–G3, not invented in advance. No custom smart contract in the selected MVP architecture.
 
-| Component | Owns | Does not own |
+Four modules concentrate behavior behind small interfaces:
+
+| Module | Interface and depth | Owned state / internal seams |
+|---|---|---|
+| Procurement | Inspect relevant work; prepare and commit finite commands; ingest authenticated observations. Hides claim concurrency, immutable terms, obligations, policy and recovery scheduling. | Coordinator Postgres transactions, operations/outbox and derived control views; HTTP and dashboard/tool transports share handlers. |
+| Actor runtime | Inspect/act against a bounded local goal. Hides ordinary sequencing, durable continuation, policy evaluation and deterministic waiting while preserving actor authority. | Local goal/journal/budget records; actor-specific signer, checkout and coordinator transport adapters. One implementation parameterized by buyer/filler policy, with separate instances and credentials. |
+| Verification | Verify bound evidence; inspect a provenance-bearing verdict. Hides merchant normalization, source freshness, CRE execution/report validation and evidence deduplication. | Independent merchant-read/CRE adapters, evidence storage and versioned predicates. No signing authority. |
+| Settlement | Prepare allowed native actions; observe and reconcile escrow/transactions. Hides payment-mode quirks, fee/UTXO calculations and lifecycle mapping while exposing actual signers and deadlines. | Selected x402/native adapter and chain provider; actor signer remains separately controlled. |
+
+Pure ranking, budget arithmetic and predicates stay in-process. Use a real local database substitute to test transactional behavior. Owned worker transport and truly external integrations get explicit adapters; an external adapter plus its scripted test adapter justify the seam. Do not create abstraction layers for every function or normalize native limitations away.
+
+The deletion test is practical: removing a module should force substantial ordering/recovery logic back into every client. An abstraction that merely forwards arguments and changes names has not improved agent leverage. Client adapters may expose different transports, but schemas, state transitions and authority checks have one implementation source.
+
+| Implementation element | Owns | Does not own |
 |---|---|---|
 | API | Wallet-authenticated requests, quotes, claims, projections | Buyer signing keys or authority to change contract rules |
 | Order service | State transitions, optimistic versions, idempotency, private recipient reference | Proof that an on-chain transaction finalized |
@@ -46,6 +80,14 @@ Use a TypeScript workspace: React/Next.js filler dashboard, a small Fastify API,
 | Buyer monitor | Inspect results, compare evidence, request refund within allowed time | Recover funds unconditionally after the withdrawal window |
 | Filler agent runtime | Opportunity selection, fiat budget, authorized checkout, evidence submission and purchase reconciliation | Central card custody, merchant authentication bypass or unconditional claims of best market price |
 
+## Truth, authority and state ownership
+
+Accepted terms are immutable references. Merchant and chain observations retain independent provenance, source times, applicable versions, execution mode and contradictions. Application state summarizes observations; it does not manufacture finality. `ControlView`, goal completion and action eligibility are computed from the same domain model. Do not create an additional mutable "agent status" that can disagree with financial records.
+
+Persist obligations and their next wake transactionally with state changes; use the existing outbox for dispatch. This requires an operation journal and audit history, not a new general event-sourcing framework. Source corrections produce new observations and recomputed projections; they do not erase uncertain financial effects. A stale local journal blocks new effects even when the coordinator snapshot looks ready.
+
+The coordinator decides what application actions are admissible. The actor grant and signer decide what that actor is authorized to execute. The merchant/chain decides what external effect actually occurred. A capability advertisement or action plan crosses neither authority boundary by itself. A third-party seller's native actions outside the application remain an explicit trust limitation.
+
 ## Escrow integration modes
 
 **Target: `X402_MASUMI`.** Use the actual Cardano `exact` scheme with `assetTransferMethod: "masumi"`, pinned seller-signed terms and commitment to this order. The x402 exchange buys access to starting the funded procurement job. The successful resource response is an asynchronous acknowledgement; it is not the purchased Coke or final fulfillment.
@@ -56,7 +98,7 @@ The official current SDK explicitly documents incompatibility with the standard 
 
 **Contingent fallback: `MASUMI_NATIVE`.** Use native Masumi job creation, buyer purchase, result submission and settlement. This preserves escrow but is not evidence of x402 procurement funding. Optional separate paid APIs must have a real product use and explicit price; adding a decorative x402 charge does not close the gap. Trigger D7 if the target is infeasible.
 
-**Local mode: `MOCK`.** For UI and deterministic failure tests only. Mock state cannot be used as proof of chain integration.
+**Local test execution: `payment.execution = MOCK`.** For UI and deterministic failure tests of the declared payment protocol only. Mock is an execution label, not a third payment protocol, and cannot be used as proof of chain integration.
 
 ## Application lifecycle
 
@@ -107,8 +149,15 @@ Making CRE approval mandatory at contract level would require a verified support
 - Persist quotes and x402 settlement deduplication durably. Process-local SDK stores are not adequate for restart-safe money flows.
 - Commit state changes and outbox jobs together. Workers may retry; external effects use stable operation IDs and check chain/merchant state before creating another effect.
 - Record transaction hash/output reference before waiting for confirmation. HTTP timeout does not mean a payment failed.
+- Before checkout, bind the actor-local operation journal to a coordinator purchase-attempt record. A server `FUNDED` projection cannot authorize a second checkout while a registered/local attempt is unresolved. New executors reconcile both records before taking over.
 - Periodically reconcile every nonterminal escrow from chain state, not only from callbacks. Handle out-of-order observations and rollback detection.
 - Keep independent transaction records for funding, result, collection and refund. UI can show a projected state while retaining the exact supporting observations.
+
+## Agent scheduling and knowledge
+
+Use the worker and actor runtime for cursor-based waits, deadline timers, retry budgets, policy decisions and reconciliation. Invoke a model only for ambiguity or a consequential choice outside deterministic policy. Store an execution epoch to fence coordinator writes; external submissions already in flight still require reconciliation. Monitor health and the nearest protection deadline are part of every relevant control view, not only operator logs.
+
+Keep reusable operational knowledge in a versioned adapter conformance catalogue and regression fixtures. Reviewed, tested changes can update capability descriptions; observed anecdotes cannot change financial authority or accepted predicates. Runtime facts, personal preferences, contract rules and reusable integration knowledge are different data classes with different update rights. No cross-user vector memory or self-modifying contract policy is required.
 
 ## Privacy and deployment
 
