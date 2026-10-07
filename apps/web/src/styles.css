@@ -2242,3 +2242,23 @@ td .outline-tag {
     width: 100%;
   }
 }
+.api-section {
+  margin-top: 48px;
+}
+.api-section h2 {
+  font-size: 20px;
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+.api-section table {
+  border: 1px solid var(--line);
+}
+.api-limits {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.api-page .workspace-note a {
+  color: var(--text);
+}

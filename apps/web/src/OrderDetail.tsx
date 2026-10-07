@@ -266,7 +266,7 @@ export function OrderDetail({
                           value={orderNumber}
                           onChange={(event) => setOrderNumber(event.target.value)}
                           placeholder="404-1234567-1234567"
-                          pattern="[A-Za-z0-9_-]+"
+                          pattern="[A-Za-z0-9_\-]+"
                           required
                         />
                       </label>

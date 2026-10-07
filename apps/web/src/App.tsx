@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react";
 import { Landing } from "./Landing";
 import { Workspace } from "./Workspace";
+import { ApiPage } from "./ApiPage";
 import { Arrow, Mark } from "./ui";
 
 export function App() {
-  const [workspace, setWorkspace] = useState(
-    location.hash.startsWith("#workspace"),
-  );
+  const view = () => (location.hash.startsWith("#workspace") ? "workspace" : location.hash === "#api" ? "api" : "landing");
+  const [page, setPage] = useState(view);
+  const workspace = page !== "landing";
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     const navigate = () => {
-      const next = location.hash.startsWith("#workspace");
-      setWorkspace(next);
+      const next = view();
+      setPage(next);
       setMenuOpen(false);
-      if (next || !location.hash) window.scrollTo(0, 0);
+      if (next !== "landing" || !location.hash) window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", navigate);
     return () => window.removeEventListener("hashchange", navigate);
@@ -43,15 +44,13 @@ export function App() {
           >
             <a href="#how-it-works">How it works</a>
             <a href="#protocol">The protocol</a>
-            <a href="/v1/capabilities" target="_blank" rel="noreferrer">
-              API <Arrow diagonal />
-            </a>
+            <a href="#api">API</a>
           </nav>
           <a
             className="button primary header-cta"
-            href={workspace ? "#" : "#workspace"}
+            href={page === "workspace" ? "#" : "#workspace"}
           >
-            {workspace ? "Back to overview" : "Launch app"} <Arrow diagonal />
+            {page === "workspace" ? "Back to overview" : "Launch app"} <Arrow diagonal />
           </a>
           <button
             className="menu-button icon-button"
@@ -63,7 +62,7 @@ export function App() {
           </button>
         </div>
       </header>
-      {workspace ? <Workspace /> : <Landing />}
+      {page === "workspace" ? <Workspace /> : page === "api" ? <ApiPage /> : <Landing />}
       <footer className="site-footer container">
         <a className="footer-brand" href="#">
           <Mark />

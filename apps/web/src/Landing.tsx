@@ -47,9 +47,9 @@ export function Landing() {
               WORLD
             </div>
             <h1>
-              Intent to
+              Global
               <br />
-              <span>execution.</span>
+              <span>Order Book.</span>
             </h1>
             <p>
               Your agent knows what you need.
@@ -224,9 +224,7 @@ export function Landing() {
             actions, and a record of what actually happened.
           </p>
           <a
-            href="/v1/capabilities"
-            target="_blank"
-            rel="noreferrer"
+            href="#api"
             className="text-link"
           >
             Explore API capabilities <Arrow diagonal />

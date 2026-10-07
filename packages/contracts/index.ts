@@ -159,16 +159,23 @@ export class DomainError extends Error {
 }
 
 export function capabilities() {
+  // Live labels when this node is wired to Masumi (npm run masumi:setup); fixture labels otherwise (tests, preview).
+  const live = Boolean(process.env.FILLER_MASUMI_URL && process.env.BUYER_MASUMI_URL);
+  const verifier = process.env.VERIFIER === 'CRE' ? 'CRE_SIMULATION' as const : 'APP_WORKER_DKIM' as const;
   return {
-    // `integration` is the default for fixture orders; each control view carries that order's own labels.
-    contractVersion: '0.2.0', schemaHash: hash(z.toJSONSchema(commandSchema)), integration,
-    merchants: [{ id: 'amazon-in', environment: 'LIVE', checkout: 'HUMAN_ASSISTED', verifier: process.env.VERIFIER === 'CRE' ? 'CRE_SIMULATION' : 'APP_WORKER_DKIM',
-      tested: 'SYNTHETIC_EMAILS_AND_ONE_REVOKED_KEY_EMAIL_ONLY' }],
+    contractVersion: '0.2.0', schemaHash: hash(z.toJSONSchema(commandSchema)),
+    integration: live ? {
+      payment: { ...integration.payment, execution: 'LIVE' as const },
+      merchant: { id: 'amazon-in' as const, environment: 'LIVE' as const, checkout: 'HUMAN_ASSISTED' as const },
+      verifier: { execution: verifier },
+    } : integration,
+    merchants: [{ id: 'amazon-in', environment: 'LIVE', checkout: 'HUMAN_ASSISTED', verifier,
+      tested: 'LIVE_PREPROD_ESCROW_AND_REAL_AMAZON_IN_EMAIL' }],
     commands: ['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'review_evidence', 'fund_escrow', 'request_refund', 'authorize_refund'],
-    configured: true, tested: false, availableNow: true,
-    scope: 'LOCAL_CONTROL_CONTRACT_ONLY',
-    blockers: ['LIVE_FUNDING_UNVALIDATED', 'LIVE_DKIM_PASS_UNVERIFIED', 'MERCHANT_NONCE_IN_SHIP_TO_UNVERIFIED', 'CRE_NOT_CONNECTED',
-      'WALLET_AUTH_NOT_IMPLEMENTED'],
+    configured: true, tested: live, availableNow: true,
+    scope: live ? 'CARDANO_PREPROD_TESTNET' : 'LOCAL_CONTROL_CONTRACT_ONLY',
+    // What is still not production: CRE runs as a local simulation, sessions are dev tokens, delivery is not verified.
+    blockers: ['CRE_DON_DEPLOYMENT_PENDING', 'WALLET_AUTH_NOT_IMPLEMENTED', 'DELIVERY_NOT_VERIFIED'],
     schemas: '/v1/capabilities/commands',
   };
 }

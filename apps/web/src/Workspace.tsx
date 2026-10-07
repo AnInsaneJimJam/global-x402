@@ -205,7 +205,7 @@ export function Workspace() {
           Real Amazon.in orders. Escrow in Masumi on Cardano Preprod with test tUSDM. Proofs are
           checked by a Chainlink CRE workflow (local simulation).
         </span>
-        <a href="/v1/capabilities" target="_blank" rel="noreferrer" aria-label="View API capabilities">
+        <a href="#api" aria-label="View the API">
           <Arrow diagonal />
         </a>
       </div>
@@ -436,9 +436,7 @@ export function Workspace() {
           </div>
           <div className="panel-footer">
             <span>SAME API YOUR AGENT USES</span>
-            <a href="/v1/capabilities/commands" target="_blank" rel="noreferrer">
-              Command schema ↗
-            </a>
+            <a href="#api">API reference ↗</a>
           </div>
         </section>
         {selected && session && (

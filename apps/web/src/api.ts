@@ -126,6 +126,13 @@ export function errorMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.code === "DEV_AUTH_REQUIRED")
       return "This session token was not accepted. Use a configured buyer or filler token.";
+    const known: Record<string, string> = {
+      EVIDENCE_REPLAY: "This Amazon order number was already used as proof for another order. One merchant order can settle only one order.",
+      EVIDENCE_NOT_FOUND: "Upload the .eml again, then submit.",
+      PURCHASE_ALREADY_PLACED: "A purchase is already registered for this order.",
+      ORDER_NOT_FUNDED: "Wait until the buyer's escrow lock is confirmed.",
+    };
+    if (known[error.code]) return known[error.code]!;
     return `${error.message.charAt(0).toUpperCase()}${error.message.slice(1)}.`;
   }
   return "Could not reach the API. Check that the local API and database are running, then try again.";
