@@ -1,8 +1,18 @@
 # Global Order Book
 
-**Status: implementation started. A local control-contract slice is runnable; live merchant, payment and CRE integration gates remain.**
+A buyer's AI agent gets a real Web2 purchase made by a **filler** who pays with their own card and is paid from **Masumi escrow on Cardano** once the merchant's **DKIM-signed confirmation email** proves the order was placed.
 
-**Two-person split (current):** start with [docs/handoff/README.md](docs/handoff/README.md) — Track A (settlement) and Track B (evidence/filler), shared contract, status logs and agent prompts.
+**Status:** end to end in code — buyer agent, filler agent (human-assisted checkout), native Masumi escrow adapter with chain observer, DKIM proof for Amazon.in, manual review, refunds, and a dashboard. 50 automated tests including a two-agent flow against a scripted escrow. The live Preprod run (node setup + wallet funding) is the remaining step; see the recording runbook.
+
+| Want to… | Go to |
+|---|---|
+| Record the demo / run it live on Preprod | [docs/DEMO.md](docs/DEMO.md) |
+| See the dashboard with mock data | `npm run preview` → `http://127.0.0.1:3100/#token=preview-buyer&persona=buyer` |
+| Run the agents | `npm run buyer -- <purchase.json>`, `npm run filler` (with `npm run dev` + `npm run worker`) |
+| Set up the Masumi node | [infra/masumi/README.md](infra/masumi/README.md), then `npm run masumi:setup` |
+| Understand the design | [docs/00-decisions.md](docs/00-decisions.md) → [07](docs/07-agent-system.md) → [01](docs/01-product-spec.md) → [02](docs/02-architecture.md) |
+
+**Earlier two-person split:** [docs/handoff/README.md](docs/handoff/README.md) — Track A (settlement) and Track B (evidence/filler), shared contract and status logs.
 
 **Earlier handoff:** the [implementation handoff](docs/HANDOFF.md) describes the code before the split. It links the authoritative design documents, current code, verification evidence and next integration gates.
 
