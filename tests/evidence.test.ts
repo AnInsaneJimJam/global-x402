@@ -120,3 +120,12 @@ test('evidence must be uploaded by the assigned filler for that order', () => wi
     merchantOrderId: ORDER_NO, evidenceId: 'f'.repeat(64) });
   await assert.rejects(c.service.act(filler, plan.id, 'evidence-missing'), code('EVIDENCE_NOT_FOUND'));
 }));
+
+test('control view labels a real merchant order as LIVE, human-assisted and DKIM-verified', () => withContext(async c => {
+  const plan = await c.service.prepare(buyer, { command: 'create_intent', input: { ...intent, clientOrderId: 'live', merchantId: 'amazon-in' } });
+  const orderId = (await c.service.act(buyer, plan.id, 'create-live')).orderId;
+  const view = await c.service.inspect(buyer, orderId);
+  assert.deepEqual(view.integration.merchant, { id: 'amazon-in', environment: 'LIVE', checkout: 'HUMAN_ASSISTED' });
+  assert.equal(view.integration.verifier.execution, 'APP_WORKER_DKIM');
+  assert.equal(view.integration.payment.execution, 'MOCK');
+}));

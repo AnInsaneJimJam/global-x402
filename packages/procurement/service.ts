@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { commandSchema, controlSchema, hash, DomainError, integration } from '../contracts/index.js';
+import { commandSchema, controlSchema, hash, DomainError } from '../contracts/index.js';
 import type { Actor, Command, Order, Plan, Receipt } from '../contracts/index.js';
 import { handlers } from './commands/index.js';
-import { verificationView } from './evidence.js';
+import { integrationFor, verificationView } from './evidence.js';
 import { Store } from './store.js';
 
 type Clock = () => Date;
@@ -114,7 +114,7 @@ export class Procurement {
       const verification = verificationView(order, actor);
       return controlSchema.parse({
         schemaVersion: '0.2.0', scope: { kind: 'order', id: order.id }, viewer: actor,
-        controlVersion: order.version, generatedAt: this.clock().toISOString(), integration,
+        controlVersion: order.version, generatedAt: this.clock().toISOString(), integration: integrationFor(order),
         termsHash: order.termsHash, claimId: order.claimId,
         summary: uncertain ? 'Reconcile the registered purchase; new checkout is blocked.' : placed ?
           'Placement is actor-reported. Independent verification and settlement are not implemented.' : 'Local control-contract fixture; no live spending capability.',
@@ -159,7 +159,7 @@ export class Procurement {
       sku: order.intent.sku, itemTitle: order.intent.itemTitle ?? null, quantity: order.intent.quantity,
       currency: order.intent.currency, fiatMinor: order.intent.fiatMinor,
       netTokenUnits: order.intent.netTokenUnits, assetId: order.intent.assetId, network: order.intent.network,
-      status: 'AWAITING_FUNDING', integration })), overflow: rows.rows.length > 100,
+      status: 'AWAITING_FUNDING', integration: integrationFor(order) })), overflow: rows.rows.length > 100,
       nextAfter: rows.rows.length > 100 ? page.at(-1)?.data.id : null };
   }
 }

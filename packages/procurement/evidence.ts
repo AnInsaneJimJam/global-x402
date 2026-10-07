@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DomainError, hash, id, recipientSchema } from '../contracts/index.js';
+import { DomainError, hash, id, integration, recipientSchema } from '../contracts/index.js';
 import type { Actor, Order, Recipient, Verification } from '../contracts/index.js';
 import type { Store } from './store.js';
 
@@ -78,6 +78,19 @@ export async function storeEvidence(store: Store, actor: Actor, orderId: string,
 
 export function readEvidence(orderId: string, sha256: string, dir = evidenceDir()) {
   return readFile(join(dir, id.parse(orderId), `${/^[a-f0-9]{64}$/.test(sha256) ? sha256 : fail('INVALID_EVIDENCE_ID', 400)}.eml`));
+}
+
+// Per-order IntegrationIdentity for the merchant and verifier layers (payment stays Track A's).
+// Real merchants are human-assisted checkouts on the filler's own account; labels never claim more.
+const LIVE_MERCHANTS = new Set(['amazon-in', 'amazon-sg']);
+export function integrationFor(order: Order) {
+  const live = LIVE_MERCHANTS.has(order.intent.merchantId);
+  return {
+    payment: integration.payment,
+    merchant: live ? { id: order.intent.merchantId as 'amazon-in' | 'amazon-sg', environment: 'LIVE' as const, checkout: 'HUMAN_ASSISTED' as const }
+      : integration.merchant,
+    verifier: { execution: order.verification?.execution ?? (live ? 'APP_WORKER_DKIM' as const : integration.verifier.execution) },
+  };
 }
 
 // Verification part of the control view, kept here so service.inspect only splices it in.

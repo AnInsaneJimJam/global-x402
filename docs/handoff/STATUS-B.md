@@ -13,7 +13,7 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 | B4 Evidence upload + submit | DONE | `POST /v1/orders/:id/evidence-uploads` (message/rfc822, ≤1 MB, 0600 file under `EVIDENCE_DIR`); `submit_evidence` requires that `evidenceId`, enqueues `verify_evidence` |
 | B5 verify_evidence job + manual review | DONE | `apps/worker/jobs/verify_evidence.ts` (verifies outside tx, writes only if evidence still current, PASS → `submit_result`); `review_evidence` buyer command (MANUAL label) |
 | B6 Filler agent loop | DONE | `examples/filler-agent/{agent,main}.ts` (`npm run filler`): rank → claim → wait funding → human checkout via `humanCheckout` adapter + `ActorRuntime` journal over HTTP (`httpCoordinator`) → upload .eml → submit → wait verdict. `unsure` blocks re-buying; rerun with order id reconciles |
-| B7 Failure tests | NOT STARTED | |
+| B7 Failure tests | DONE | docs/06 coverage: T09 edited email (`verification.test`), T10 wrong item/qty/total/recipient/time (`verification`, `amazon-in`), T11 reused merchant order (`control.test`, `evidence.test`), T12 key/DNS outage → INCONCLUSIVE, T24 wrong filler/wallet (`evidence`, `api`), T25 instructions in email are data, T28/T34/T55 no second purchase (`control`, `filler-agent`) |
 | B8 Dashboard (stretch) | NOT STARTED | |
 | B9 CRE simulation (stretch) | NOT STARTED | |
 
@@ -36,6 +36,8 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 - `intent.itemTitle` (optional, exact merchant title) is accepted by `create_intent`; buyer runner should send it.
 
 ## Session log
+
+- 2026-10-07 — B7 failure coverage mapped; added T25. Control view IntegrationIdentity is now per order: real merchants show `LIVE / HUMAN_ASSISTED` and verifier `APP_WORKER_DKIM` (or `MANUAL` after review); payment stays Track A's `MOCK` until live. 45/45 tests.
 
 - 2026-10-07 — B6 filler agent: runtime accepts LIVE checkout via a coordinator port (HTTP or in-process); `ControlClient` gained opportunities/assignment/uploadEvidence/observePurchase; opportunities list now includes currency + itemTitle. Two end-to-end agent tests over the real HTTP handlers. 43/43 tests. PR #3 awaits review/merge (auto-merge was blocked as merge-without-review).
 
