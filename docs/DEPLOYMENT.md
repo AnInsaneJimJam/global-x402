@@ -17,8 +17,13 @@ Frontend and API published on 2026-10-07:
   Values are never included here. Do not publish this file.
 - Worker service `worker` is provisioned, ID `63786dfe-728a-4c73-b00b-645f0f17cfc6`.
   Database references, CRE simulation mode and API callback settings are configured;
-  the service is not running yet, pending private CLI authentication.
-- Hosted Masumi and authenticated CRE simulation are **not yet deployed**.
+  deployment `c774d9c0-49c5-4c9d-a809-b3e035c534f9` is `SUCCESS`, with one running replica.
+  Browser login completed and its session files were transferred privately to Railway.
+- An authenticated simulation in the local worker image rejected unsigned synthetic
+  evidence and completed its isolated callback. This touched no real orders or funds.
+  Executing the same smoke check inside Railway remains pending temporary SSH access
+  approval. A running replica alone does not prove successful hosted CRE execution.
+- Hosted Masumi is **not yet deployed**.
   Full hosted settlement requires the existing node database/wallet cutover and scoped
   credentials, plus CRE CLI authentication. Public site/API readiness does not
   imply live escrow execution.
@@ -164,6 +169,15 @@ two browser-session files under the worker's home directory with mode 0600.
 This image is Linux x86-64; do not deploy it to ARM without changing the CLI binary.
 End-to-end CRE simulation in Railway still needs a real authenticated smoke run.
 
+For the non-paying smoke check, run `scripts/smoke-cre-simulation.mjs` inside the
+authenticated worker container (or pipe it into `node --input-type=module` through an
+authorized Railway SSH connection). It copies the workflow into temporary storage,
+uses a separate loopback fixture API and random callback secret, and expects unsigned
+synthetic evidence to produce `FAIL`. It never connects to the app database or Masumi.
+The production workflow config is untouched and raw CLI output is suppressed. This
+tests CLI execution, verification and callback plumbing, not genuine merchant proof,
+production API integration, or Chainlink DON/TEE attestation.
+
 ## 5. Vercel frontend
 
 Import the same GitHub repository, use repository root, and choose Framework Preset
@@ -212,6 +226,9 @@ Verified locally on 2026-10-07:
 - Simulation auth wrapper: missing authentication blocks startup; fixture browser-session
   files restore with mode 0600 and reach the worker's database preflight. These fixture
   checks are not an authenticated CRE simulation.
+- Authenticated CRE CLI 1.37.0 simulation in the local worker image passed the isolated
+  unsigned-email rejection and callback smoke check. Railway reports the deployed
+  worker healthy/running; execution of this smoke inside Railway awaits SSH approval.
 
 Local checks and image builds are distinct from a live hosted smoke test. No public URLs,
 CRE authenticated simulation or on-chain hosted capability are claimed until verified.
