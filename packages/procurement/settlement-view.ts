@@ -1,4 +1,14 @@
+import { DomainError, id } from '../contracts/index.js';
 import type { Actor, Order } from '../contracts/index.js';
+import type { Store } from './store.js';
+
+// Exact escrow terms for the order's buyer, so the buyer's own agent can lock funds with its own key.
+export async function escrowTerms(store: Store, actor: Actor, orderId: string) {
+  const order = (await store.pool.query<{ data: Order }>('SELECT data FROM gob_orders WHERE id=$1', [id.parse(orderId)])).rows[0]?.data;
+  if (!order || actor.role !== 'BUYER' || actor.id !== order.buyerId) throw new DomainError('NOT_FOUND', 404);
+  if (!order.escrow?.terms) throw new DomainError('ESCROW_TERMS_NOT_READY');
+  return { orderId: order.id, grossBaseUnits: order.escrow.grossBaseUnits, assetId: order.escrow.assetId, terms: order.escrow.terms };
+}
 
 // Settlement slice of the control view: funding source, escrow deadlines/txs, and the escrow actions.
 export function settlementView(order: Order, actor: Actor) {

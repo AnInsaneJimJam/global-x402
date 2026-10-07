@@ -30,7 +30,8 @@ export const commandSchema = z.discriminatedUnion('command', [
   z.strictObject({ command: z.literal('submit_evidence'), orderId: id, purchaseOperationId: id, merchantOrderId: id,
     evidenceId: z.string().regex(/^[a-f0-9]{64}$/) }),
   z.strictObject({ command: z.literal('review_evidence'), orderId: id, decision: z.enum(['APPROVE', 'REJECT']) }),
-  z.strictObject({ command: z.literal('fund_escrow'), orderId: id }),
+  // selfFunded: the buyer's own agent already submitted the lock with its own Masumi key; the coordinator only observes.
+  z.strictObject({ command: z.literal('fund_escrow'), orderId: id, selfFunded: z.boolean().optional() }),
   z.strictObject({ command: z.literal('request_refund'), orderId: id }),
   z.strictObject({ command: z.literal('authorize_refund'), orderId: id }),
 ]);

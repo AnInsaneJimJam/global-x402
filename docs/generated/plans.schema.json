@@ -251,6 +251,9 @@
               "minLength": 1,
               "maxLength": 128,
               "pattern": "^[a-zA-Z0-9_-]+$"
+            },
+            "selfFunded": {
+              "type": "boolean"
             }
           },
           "required": [

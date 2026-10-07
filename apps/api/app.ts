@@ -6,6 +6,7 @@ import { capabilities, commandSchema, commitSchema, DomainError, id, purchaseObs
 import type { Actor } from '../../packages/contracts/index.js';
 import type { Procurement } from '../../packages/procurement/service.js';
 import { assignment, putRecipient, storeEvidence } from '../../packages/procurement/evidence.js';
+import { escrowTerms } from '../../packages/procurement/settlement-view.js';
 
 export function createApp(service: Procurement, sessions: ReadonlyMap<string, Actor>) {
   const app = Fastify({ logger: false, bodyLimit: 32 * 1024 });
@@ -57,6 +58,8 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   // Track B: private recipient, funded-only assignment reveal and raw .eml evidence upload.
   app.put<{ Params: { ref: string } }>('/v1/recipients/:ref', async request =>
     putRecipient(service.store, actor(request.headers.authorization), request.params.ref, request.body));
+  app.get<{ Params: { id: string } }>('/v1/orders/:id/escrow-terms', async request =>
+    escrowTerms(service.store, actor(request.headers.authorization), request.params.id));
   app.get<{ Params: { id: string } }>('/v1/orders/:id/assignment', async request =>
     assignment(service.store, actor(request.headers.authorization), request.params.id));
   // The 1 MB raw-email parser exists only inside this encapsulated scope; other routes keep 32 KB JSON.

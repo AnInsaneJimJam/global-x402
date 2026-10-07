@@ -24,7 +24,9 @@ export const fundEscrow: Handler = {
     if (command.command !== 'fund_escrow') fail('INVALID_COMMAND');
     const current = requireOrder(order);
     current.funding = 'PENDING';
-    await enqueue(db, { kind: 'fund_escrow', orderId: current.id, dedupeKey: `fund:${current.id}:${current.escrow!.escrowId}`, payload: {} });
+    await enqueue(db, command.selfFunded
+      ? { kind: 'observe_escrow', orderId: current.id, dedupeKey: `observe:${current.id}:self-funded`, payload: {} }
+      : { kind: 'fund_escrow', orderId: current.id, dedupeKey: `fund:${current.id}:${current.escrow!.escrowId}`, payload: {} });
     return current;
   },
 };
