@@ -23,7 +23,7 @@ export async function runOne(store: Store, handlers: JobHandlers = productionHan
   try {
     const handler = handlers[claimed.kind];
     if (!handler) throw new Error('UNKNOWN_JOB_KIND');
-    await handler(claimed);
+    await handler(claimed, store);
     await store.pool.query('DELETE FROM gob_outbox WHERE id=$1 AND attempts=$2', [claimed.id, claimed.attempts]);
   } catch (error) {
     // Keep only a coarse error class; handler errors can contain credentials or recipient data.

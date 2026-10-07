@@ -14,7 +14,11 @@ test('transactional outbox leases, dispatches and deduplicates a job', async () 
       await enqueue(db, { kind: 'test_dummy', orderId, dedupeKey: `dummy:${orderId}`, payload: { orderId } });
     });
     const seen: string[] = [];
-    assert.equal(await runOne(c.store, { test_dummy: async job => { seen.push(job.orderId); } }), true);
+    assert.equal(await runOne(c.store, { test_dummy: async (job, store) => {
+      const order = await store.pool.query('SELECT id FROM gob_orders WHERE id=$1', [job.orderId]);
+      assert.equal(order.rows[0]?.id, orderId);
+      seen.push(job.orderId);
+    } }), true);
     assert.deepEqual(seen, [orderId]);
     assert.equal(await runOne(c.store, { test_dummy: async () => { throw new Error('unexpected'); } }), false);
     const remaining = await c.store.pool.query('SELECT id FROM gob_outbox');
