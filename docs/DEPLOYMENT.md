@@ -15,10 +15,18 @@ Frontend and API published on 2026-10-07:
   GitHub auto-deploy for this Vercel project is not configured yet.
 - Actor tokens were generated privately and saved to ignored `.local/hosted-app.env`.
   Values are never included here. Do not publish this file.
-- Worker/Masumi services and authenticated CRE simulation are **not yet deployed**.
+- Worker service `worker` is provisioned, ID `63786dfe-728a-4c73-b00b-645f0f17cfc6`.
+  Database references, CRE simulation mode and API callback settings are configured;
+  the service is not running yet, pending private CLI authentication.
+- Hosted Masumi and authenticated CRE simulation are **not yet deployed**.
   Full hosted settlement requires the existing node database/wallet cutover and scoped
-  credentials, plus CRE headless authentication. Public site/API readiness does not
+  credentials, plus CRE CLI authentication. Public site/API readiness does not
   imply live escrow execution.
+- Local node inspection found purchasing/selling wallets but an empty V2 registry and
+  no payment records. Its active admin/encryption keys differ from `infra/masumi/.env`.
+  The active settings were preserved in ignored private storage; a cutover must use
+  those settings with the matching database. No node was stopped or chain transaction
+  submitted during this inspection.
 
 The owner initially chose free-only usage and later explicitly instructed to deploy
 without the spending-limit prerequisite. No paid plan upgrade was performed.
@@ -131,19 +139,28 @@ HTTP health check. Keep one worker replica for this MVP.
 | VERIFIER | `CRE` for the CRE simulation path |
 | CRE_API_URL | API HTTPS **origin**, without `/v1` or credentials |
 | CRE_VERIFIER_TOKEN | Same secret as API |
-| CRE_API_KEY | CRE headless API key entered privately |
+| CRE_API_KEY | Optional headless API key entered privately |
+| CRE_SESSION_YAML_B64 | With browser login: private base64 of `~/.cre/cre.yaml` |
+| CRE_CONTEXT_YAML_B64 | With browser login: private base64 of `~/.cre/context.yaml` |
 | ESCROW_PAY_WINDOW_MIN | `25` |
 | ESCROW_RESULT_WINDOW_MIN | `45` |
 
 CRE API-key authentication currently requires approved deploy access. Obtain the key in
 the CRE organization API settings; this is distinct from `CRE_VERIFIER_TOKEN`, which
 protects our callback endpoints. If the owner cannot obtain CRE API-key access, hosted
-CRE execution remains blocked; do not silently switch the verifier or claim CRE runs.
+CRE simulation can instead use browser login: run `cre login`, then transfer both session
+files privately into the two Railway secret variables above. Treat both files as secrets;
+never commit them, put them in the image, or paste their contents into chat. Browser
+sessions can expire; reauthenticate and replace the variables when that happens. No
+Chainlink network workflow deployment is needed for this simulation-only setup.
+Without either authentication method, CRE execution remains blocked; do not silently
+switch the verifier or claim CRE runs.
 A direct DKIM worker is available only by explicitly choosing `VERIFIER` unset, and its
 results are labelled `APP_WORKER_DKIM` rather than `CRE_SIMULATION`.
 
 The startup wrapper creates a mode-0600 temporary env file for the simulator and updates
-its staging config to the hosted API origin. CLI auth is inherited from `CRE_API_KEY`.
+its staging config to the hosted API origin. CLI auth uses `CRE_API_KEY` or restores the
+two browser-session files under the worker's home directory with mode 0600.
 This image is Linux x86-64; do not deploy it to ARM without changing the CLI binary.
 End-to-end CRE simulation in Railway still needs a real authenticated smoke run.
 
@@ -192,6 +209,9 @@ Verified locally on 2026-10-07:
 - Vercel Build Output v3 generation and proxy route checked with a test HTTPS origin.
 - API, worker and Masumi Docker images built successfully.
 - Worker container: CRE 1.37.0, Bun 1.3.14, workflow write permission and module loading passed.
+- Simulation auth wrapper: missing authentication blocks startup; fixture browser-session
+  files restore with mode 0600 and reach the worker's database preflight. These fixture
+  checks are not an authenticated CRE simulation.
 
 Local checks and image builds are distinct from a live hosted smoke test. No public URLs,
 CRE authenticated simulation or on-chain hosted capability are claimed until verified.
