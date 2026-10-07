@@ -4,6 +4,7 @@ import { createIntent } from './create_intent.js';
 import { claim } from './claim.js';
 import { registerPurchase } from './register_purchase.js';
 import { submitEvidence } from './submit_evidence.js';
+import { reviewEvidence } from './review_evidence.js';
 
 export type Handler = {
   role: Actor['role'];
@@ -17,4 +18,5 @@ export const handlers: Record<Command['command'], Handler> = {
   claim,
   register_purchase: registerPurchase,
   submit_evidence: submitEvidence,
+  review_evidence: reviewEvidence,
 };

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Global Order Book — control view</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; margin: 1.5rem; max-width: 70rem; color: #1b1b1b; }
+    header { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    input { padding: .35rem; min-width: 18rem; } button { padding: .35rem .7rem; cursor: pointer; }
+    table { border-collapse: collapse; width: 100%; margin: .5rem 0 1rem; } th, td { border: 1px solid #ccc; padding: .3rem .5rem; text-align: left; vertical-align: top; }
+    .labels span { display: inline-block; margin-right: .5rem; padding: .1rem .5rem; border-radius: .3rem; background: #eef; }
+    .PASS, .AVAILABLE, .OBSERVED { color: #0a6b2d; font-weight: 600; } .FAIL, .BLOCKED { color: #a11; font-weight: 600; } .UNKNOWN, .INCONCLUSIVE { color: #a60; font-weight: 600; }
+    #error { color: #a11; } li button { margin-left: .5rem; }
+  </style>
+</head>
+<body>
+  <h1>Global Order Book</h1>
+  <header>
+    <label>Dev token <input id="token" type="password" autocomplete="off" placeholder="DEV_BUYER_TOKEN or DEV_FILLER_TOKEN"></label>
+    <button id="open">Open orders</button>
+    <button id="work">My orders</button>
+  </header>
+  <p id="error" role="alert"></p>
+  <section><h2>Orders</h2><ul id="orders"></ul></section>
+  <section id="detail" hidden>
+    <h2>Order <span id="orderId"></span></h2>
+    <p class="labels" id="labels"></p>
+    <p id="summary"></p>
+    <h3>Outcome</h3><table id="outcome"></table>
+    <h3>Verification criteria</h3><table id="criteria"></table>
+    <h3>Facts</h3><table id="facts"></table>
+    <h3>Obligations</h3><table id="obligations"></table>
+    <h3>Actions</h3><table id="actions"></table>
+    <p id="review" hidden><button id="approve">Approve evidence (manual)</button> <button id="reject">Reject evidence</button></p>
+  </section>
+  <script src="/app.js"></script>
+</body>
+</html>

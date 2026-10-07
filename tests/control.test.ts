@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DomainError } from '../packages/contracts/index.js';
 import { Procurement } from '../packages/procurement/service.js';
+import { storeEvidence } from '../packages/procurement/evidence.js';
 import { ActorRuntime } from '../packages/agent-runtime/index.js';
 import { confirmFixtureFunding, ScriptedCheckout } from '../fixtures/adapters.js';
 import { context, createOrder, claim, buyer, filler, otherFiller } from './helpers.js';
@@ -97,7 +98,7 @@ test('lost checkout response, stop, restart and reconciliation never buy twice',
     const recovered = await restarted.reconcile('run-1');
     assert.equal(recovered.run.purchase?.state, 'ORDERED');
     assert.equal(recovered.run.stopped, true);
-    assert.equal(recovered.control.outcome.verification, 'NOT_IMPLEMENTED');
+    assert.equal(recovered.control.outcome.verification, 'NOT_STARTED');
     assert.equal(checkout.calls, 1);
     await restarted.resume('run-1');
     await assert.rejects(restarted.purchase('run-1'), code('PURCHASE_ALREADY_REGISTERED'));
@@ -136,6 +137,7 @@ test('actor-reported failure cannot authorize a replacement purchase', async () 
 
 test('same merchant order cannot be submitted for two assignments', async () => {
   const c = await context();
+  const dir = await mkdtemp(join(tmpdir(), 'gob-replay-'));
   try {
     for (const index of [1, 2]) {
       const orderId = await createOrder(c.service, `intent-${index}`);
@@ -143,11 +145,13 @@ test('same merchant order cannot be submitted for two assignments', async () => 
       const plan = await c.service.prepare(filler, { command: 'register_purchase', orderId, purchaseOperationId: `p${index}` });
       await c.service.act(filler, plan.id, `register-${index}`);
       await c.service.observePurchase(filler, orderId, { purchaseOperationId: `p${index}`, state: 'ORDERED', merchantOrderId: 'same-merchant-order' });
-      const evidence = await c.service.prepare(filler, { command: 'submit_evidence', orderId, purchaseOperationId: `p${index}`, merchantOrderId: 'same-merchant-order' });
+      const { evidenceId } = await storeEvidence(c.store, filler, orderId, Buffer.from('Subject: same order\r\n\r\nbody'), dir);
+      const evidence = await c.service.prepare(filler, { command: 'submit_evidence', orderId, purchaseOperationId: `p${index}`,
+        merchantOrderId: 'same-merchant-order', evidenceId });
       if (index === 1) await c.service.act(filler, evidence.id, `evidence-${index}`);
       else await assert.rejects(c.service.act(filler, evidence.id, `evidence-${index}`), code('EVIDENCE_REPLAY'));
     }
-  } finally { await c.close(); }
+  } finally { await rm(dir, { recursive: true, force: true }); await c.close(); }
 });
 
 test('transport key and named route cannot be reused for a different effect', async () => {

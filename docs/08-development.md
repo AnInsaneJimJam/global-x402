@@ -55,3 +55,15 @@ A process killed while holding a run lock leaves a visible lock blocker. This pr
 Current limitations include absent wallet auth, real quote/fee enforcement, native funding/settlement/refunds/disputes, monitoring deadlines, event cursors, full acquisition-goal reservations, independent verification, and the dashboard. Ranking is a pure exact-integer comparison over supplied comparable quotes; the complete concurrent goal ledger is still future work. The prototype checkout grant is a local fixture boolean, not an enforceable wallet/card policy.
 
 Generated command/plan/receipt schemas and the compact agent guide come from runtime definitions. `npm run contracts:check` catches drift. The public capability response names the local scope and live blockers; no synthetic result upgrades a live integration gate.
+
+## Track B: evidence flow and filler agent (human-assisted checkout)
+
+Run the API (`npm run dev`) and the worker (`npm run worker`) against the same `DATABASE_URL`. The worker runs `verify_evidence` (DKIM check over DNS-over-HTTPS, `DKIM_DOH_URL` optional). Evidence files are stored privately under `EVIDENCE_DIR` (default `.evidence/`, git-ignored).
+
+Buyer: store the delivery recipient once with `PUT /v1/recipients/:ref` (name, line1, city, state, postalCode, country), then create the intent with that `recipientRef` and the exact merchant `itemTitle`.
+
+Filler: `GOB_FILLER_TOKEN=… GOB_FILLER_ID=dev-filler FILLER_TARGET_UNITS=… FILLER_MAX_FIAT_MINOR=… FILLER_CURRENCY=INR npm run filler`. The agent ranks open orders, claims one, waits for funding, prints the exact checkout instructions (ship-to name includes the `GOB-XXXXXX` code), asks for the merchant order number, then for the downloaded `.eml`, and waits for the verdict. If unsure whether the order went through, answer `unsure`: the purchase stays blocked; rerun with `npm run filler -- <orderId>` to reconcile. Funding confirmation still comes from Track A (or `confirmFixtureFunding` in tests).
+
+Check a real email locally without uploading it: `node --import tsx scripts/check-eml.ts <file.eml>` (prints signature facts only).
+
+Dashboard: with `npm run dev` running, open `http://127.0.0.1:3000/`, paste `DEV_BUYER_TOKEN` or `DEV_FILLER_TOKEN`, and use **Open orders** / **My orders**. Buyers see Approve/Reject when evidence needs manual review.

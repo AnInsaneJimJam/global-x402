@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { commandSchema, controlSchema, hash, DomainError, integration } from '../contracts/index.js';
+import { commandSchema, controlSchema, hash, DomainError } from '../contracts/index.js';
 import type { Actor, Command, Order, Plan, Receipt } from '../contracts/index.js';
 import { handlers } from './commands/index.js';
+import { integrationFor, verificationView } from './evidence.js';
 import { Store } from './store.js';
 
 type Clock = () => Date;
@@ -110,24 +111,27 @@ export class Procurement {
       if (!visible(actor, order)) fail('NOT_FOUND', 404);
       const uncertain = order.purchase && ['PREPARED', 'SUBMITTING', 'UNKNOWN'].includes(order.purchase.state);
       const placed = order.purchase?.state === 'ORDERED';
+      const verification = verificationView(order, actor);
       return controlSchema.parse({
         schemaVersion: '0.2.0', scope: { kind: 'order', id: order.id }, viewer: actor,
-        controlVersion: order.version, generatedAt: this.clock().toISOString(), integration,
+        controlVersion: order.version, generatedAt: this.clock().toISOString(), integration: integrationFor(order),
         termsHash: order.termsHash, claimId: order.claimId,
         summary: uncertain ? 'Reconcile the registered purchase; new checkout is blocked.' : placed ?
           'Placement is actor-reported. Independent verification and settlement are not implemented.' : 'Local control-contract fixture; no live spending capability.',
-        outcome: { placement: placed ? 'ACTOR_REPORTED' : 'UNKNOWN', verification: 'NOT_IMPLEMENTED', settlement: 'NOT_IMPLEMENTED', goal: 'OPEN' },
+        outcome: { placement: placed ? 'ACTOR_REPORTED' : 'UNKNOWN', verification: verification.outcome, settlement: 'NOT_IMPLEMENTED', goal: 'OPEN' },
         facts: [
           { key: 'funding', state: order.funding === 'CONFIRMED' ? 'OBSERVED' : 'NOT_OBSERVED', sourceType: 'MOCK_CHAIN', value: order.funding },
           { key: 'merchantPurchase', state: placed ? 'OBSERVED' : uncertain ? 'UNKNOWN' : 'NOT_OBSERVED', sourceType: 'ACTOR_REPORT', value: order.purchase },
+          ...verification.facts,
         ],
         exposure: order.funding === 'CONFIRMED' ? [{ owner: order.buyerId, assetId: order.intent.assetId, units: order.intent.netTokenUnits, kind: 'FIXTURE_LOCKED' }] : [],
         obligations: uncertain ? [{ type: 'RECONCILE_PURCHASE', owner: order.fillerId, operationId: order.purchase?.operationId }] : placed ?
-          [{ type: order.evidence ? 'VERIFY_EVIDENCE' : 'SUBMIT_EVIDENCE', owner: order.evidence ? 'VERIFIER_NOT_IMPLEMENTED' : order.fillerId }] : [],
+          (order.evidence ? verification.obligations : [{ type: 'SUBMIT_EVIDENCE', owner: order.fillerId }]) : [],
         actions: [
           { command: 'register_purchase', status: !order.purchase && order.funding === 'CONFIRMED' && actor.role === 'FILLER' ? 'AVAILABLE' : 'BLOCKED',
             reasonCodes: order.purchase ? [placed ? 'PURCHASE_ALREADY_PLACED' : 'UNRESOLVED_PURCHASE'] : order.funding !== 'CONFIRMED' ? ['FUNDING_NOT_CONFIRMED'] : actor.role !== 'FILLER' ? ['ROLE_FORBIDDEN'] : [], requiredAuthority: 'ACTOR_LOCAL_CHECKOUT_GRANT' },
           { command: 'fund_escrow', status: 'BLOCKED', reasonCodes: ['LIVE_FUNDING_UNVALIDATED'] },
+          verification.action,
         ],
       });
     });
@@ -152,9 +156,10 @@ export class Procurement {
       "SELECT data FROM gob_orders WHERE data->>'fillerId' IS NULL AND id>$1 ORDER BY id LIMIT 101", [after]);
     const page = rows.rows.slice(0, 100);
     return { orders: page.map(({ data: order }) => ({ id: order.id, merchantId: order.intent.merchantId,
-      sku: order.intent.sku, quantity: order.intent.quantity, fiatMinor: order.intent.fiatMinor,
+      sku: order.intent.sku, itemTitle: order.intent.itemTitle ?? null, quantity: order.intent.quantity,
+      currency: order.intent.currency, fiatMinor: order.intent.fiatMinor,
       netTokenUnits: order.intent.netTokenUnits, assetId: order.intent.assetId, network: order.intent.network,
-      status: 'AWAITING_FUNDING', integration })), overflow: rows.rows.length > 100,
+      status: 'AWAITING_FUNDING', integration: integrationFor(order) })), overflow: rows.rows.length > 100,
       nextAfter: rows.rows.length > 100 ? page.at(-1)?.data.id : null };
   }
 }

@@ -6,8 +6,12 @@ import { DomainError, hash, id, actorSchema } from '../contracts/index.js';
 import type { Actor } from '../contracts/index.js';
 import type { Procurement } from '../procurement/service.js';
 
+// The coordinator operations the runtime needs: in-process Procurement or an HTTP client adapter.
+export type CoordinatorPort = Pick<Procurement, 'inspect' | 'prepare' | 'act' | 'observePurchase'>;
+
 export interface CheckoutAdapter {
-  readonly environment: 'MOCK';
+  // LIVE = a real merchant checkout (e.g. human-assisted on the filler's own account).
+  readonly environment: 'MOCK' | 'LIVE';
   place(input: { operationId: string; orderId: string; termsHash: string }): Promise<{ merchantOrderId: string }>;
   lookup(operationId: string): Promise<{ state: 'ORDERED'; merchantOrderId: string } | { state: 'UNKNOWN' }>;
 }
@@ -23,9 +27,7 @@ const runSchema = z.strictObject({
 // Actor-local journal. A crashed lock is deliberately a recovery blocker: leases cannot
 // fence external checkout. No hosted coordinator can read these files through the API.
 export class ActorRuntime {
-  constructor(readonly directory: string, readonly procurement: Procurement, readonly checkout: CheckoutAdapter) {
-    if (checkout.environment !== 'MOCK') throw new DomainError('LIVE_CHECKOUT_NOT_SUPPORTED', 422);
-  }
+  constructor(readonly directory: string, readonly procurement: CoordinatorPort, readonly checkout: CheckoutAdapter) {}
   private path(runId: string) { return join(this.directory, `${id.parse(runId)}.json`); }
   async startRun(input: RunInput) {
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
