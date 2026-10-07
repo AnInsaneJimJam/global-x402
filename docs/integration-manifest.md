@@ -58,8 +58,8 @@ public observations belong here. The app remains `MOCK`.
 | Seed guard | Missing provider key correctly rejected before upstream execution; unseeded wallet API returns 401, as expected |
 | Provider | Founder configured Preprod project key locally; successful public asset and address queries |
 | Node seed | PASS; one native V2 Preprod source and two test wallets imported; wallet-list HTTP 200 |
-| Purchasing wallet | Node-imported address matches offline derivation; no funds observed at `2026-10-07T08:02:24.911Z` |
-| Selling wallet | Node-imported address matches offline derivation; no funds observed at `2026-10-07T08:02:24.911Z` |
+| Purchasing wallet | Node-imported address matches offline derivation; **205 tADA / 200 tUSDM** observed at `2026-10-07T08:06:16.419Z` |
+| Selling wallet | Node-imported address matches offline derivation; **205 tADA / 200 tUSDM** observed at `2026-10-07T08:06:16.419Z` |
 | Filler registry | Agent ID/registration transaction **UNOBSERVED**; V2 registration template prepared, not submitted |
 
 Public addresses generated offline on 7 October 2026 (not funding evidence):
@@ -73,9 +73,19 @@ Observed node source ID: `cmuxtg6w6000423k71r9i21sa`. Purchasing wallet ID
 Selling wallet ID `cmuxtg6w8000923k7atgs2ivc`, payment key hash
 `35fe9240557c26efca02fb4da0c8a4fef02605be5b3e7a53ffe9dc1d`.
 These IDs are local node records, not on-chain agent identifiers.
-Founder reported the official faucet's rate limit. Funding is pending, not assumed
-from a submitted request. The Masumi dispenser advertises ADA/USDM and optional
-separate ADA collateral but requires a registration-email verification code.
+Founder reported the official faucet's rate limit, then funded both wallets via
+the Masumi dispenser. Blockfrost Preprod now reports `205000000` lovelace and
+`200000000` tUSDM base units on each wallet; this is observed funding, separate
+from any escrow lifecycle. The dispenser requires a registration-email verification
+code and offers separate ADA collateral.
+
+Public funding outputs observed via Blockfrost Preprod (all output index 0;
+these are dispenser funding references, not native escrow lifecycle evidence):
+
+| Wallet | ADA/tUSDM output | Additional ADA/tUSDM output | Separate 5 tADA output |
+|---|---|---|---|
+| Purchasing | `08a04cba2c39f78b4ccce90175b2d0f812bf7348e050484064e277ecfa0937c1` | `01b18db7659524227a0178743a3008bb067d62e99015f5d6a236b3a0da8778a2` | `78c4f70fc1f8b56c04c84028ae599568dd12a940da99e038809331725a562245` |
+| Selling | `f76b8731e23e01f345c52c2384c24cdd9a472d1df451526f5c12e1aacc6b3a2e` | `ca7e53c639abf325b0ba4873c4669edd55f990edb7dd32b293ab7c9d83681e77` | `a15a6ee056c05917d49a5c1e49fec0faf236958b95814d9485218b371cc91b7d` |
 
 The official runner's missing `packages/payment-core` caused the native preflight
 to fail with `MODULE_NOT_FOUND` / `ERR_PACKAGE_PATH_NOT_EXPORTED`. Its globally
