@@ -1,6 +1,8 @@
-# Global Order Book — implementation planning pack
+# Global Order Book
 
 **Status: implementation started. A local control-contract slice is runnable; live merchant, payment and CRE integration gates remain.**
+
+**New session:** start with the [implementation handoff](docs/HANDOFF.md). It links the authoritative design documents, current code, verification evidence and next integration gates.
 
 Prepared 7 October 2026. The repository contains the planning pack and an initial TypeScript/PostgreSQL implementation. The original diagram is preserved at [docs/assets/original-architecture.png](docs/assets/original-architecture.png).
 
