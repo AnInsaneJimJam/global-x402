@@ -23,7 +23,12 @@ Frontend and API published on 2026-10-07:
   evidence and completed its isolated callback. This touched no real orders or funds.
   Executing the same smoke check inside Railway remains pending temporary SSH access
   approval. A running replica alone does not prove successful hosted CRE execution.
-- Hosted Masumi is **not yet deployed**.
+- Private Masumi service `masumi` is created, ID `b8a4414c-fee3-432d-9ba4-7f1c76784c0f`.
+  Its pinned Dockerfile, active admin/encryption/provider settings, port, one-replica
+  policy and `/api/v1/health` health check are configured. No public domain is assigned.
+  The encrypted local database backup and matching active settings are preserved in
+  ignored mode-0600 local files. Private database restore and signer cutover await
+  temporary SSH approval; the Masumi process is **not yet deployed**.
   Full hosted settlement requires the existing node database/wallet cutover and scoped
   credentials, plus CRE CLI authentication. Public site/API readiness does not
   imply live escrow execution.
@@ -31,7 +36,8 @@ Frontend and API published on 2026-10-07:
   no payment records. Its active admin/encryption keys differ from `infra/masumi/.env`.
   The active settings were preserved in ignored private storage; a cutover must use
   those settings with the matching database. No node was stopped or chain transaction
-  submitted during this inspection.
+  submitted during this inspection. The local signer remains running until the private
+  restore can proceed. No public Postgres proxy or SSH account key was registered.
 
 The owner initially chose free-only usage and later explicitly instructed to deploy
 without the spending-limit prerequisite. No paid plan upgrade was performed.
