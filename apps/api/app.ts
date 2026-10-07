@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { capabilities, commandSchema, commitSchema, DomainError, id, purchaseObservationSchema } from '../../packages/contracts/index.js';
 import type { Actor } from '../../packages/contracts/index.js';
 import type { Procurement } from '../../packages/procurement/service.js';
+import { assignment, putRecipient, storeEvidence } from '../../packages/procurement/evidence.js';
 
 export function createApp(service: Procurement, sessions: ReadonlyMap<string, Actor>) {
   const app = Fastify({ logger: false, bodyLimit: 32 * 1024 });
@@ -26,7 +27,7 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   app.get('/v1/capabilities/commands', async () => z.toJSONSchema(commandSchema));
   app.get('/v1/health', async () => ({ status: 'OK', scope: 'LOCAL_CONTROL_CONTRACT_ONLY' }));
   app.post('/v1/action-plans', async request => service.prepare(actor(request.headers.authorization), request.body));
-  function commit(request: FastifyRequest, command: 'create_intent' | 'claim' | 'register_purchase' | 'submit_evidence', orderId?: string) {
+  function commit(request: FastifyRequest, command: 'create_intent' | 'claim' | 'register_purchase' | 'submit_evidence' | 'review_evidence', orderId?: string) {
     const input = commitSchema.parse(request.body);
     const key = id.parse(request.headers['idempotency-key']);
     return service.act(actor(request.headers.authorization), input.planId, input.operationId,
@@ -36,6 +37,17 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   app.post<{ Params: { id: string } }>('/v1/orders/:id/claims', async request => commit(request, 'claim', id.parse(request.params.id)));
   app.post<{ Params: { id: string } }>('/v1/orders/:id/purchase-attempts', async request => commit(request, 'register_purchase', id.parse(request.params.id)));
   app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence', async request => commit(request, 'submit_evidence', id.parse(request.params.id)));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence-reviews', async request => commit(request, 'review_evidence', id.parse(request.params.id)));
+  // Track B: private recipient, funded-only assignment reveal and raw .eml evidence upload.
+  app.addContentTypeParser('message/rfc822', { parseAs: 'buffer', bodyLimit: 1024 * 1024 }, (_request, body, done) => done(null, body));
+  app.put<{ Params: { ref: string } }>('/v1/recipients/:ref', async request =>
+    putRecipient(service.store, actor(request.headers.authorization), request.params.ref, request.body));
+  app.get<{ Params: { id: string } }>('/v1/orders/:id/assignment', async request =>
+    assignment(service.store, actor(request.headers.authorization), request.params.id));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence-uploads', async request => {
+    if (!Buffer.isBuffer(request.body)) throw new DomainError('EVIDENCE_MUST_BE_MESSAGE_RFC822', 415, 'CHANGE_INPUT');
+    return storeEvidence(service.store, actor(request.headers.authorization), request.params.id, request.body);
+  });
   app.get<{ Querystring: { after?: string } }>('/v1/orders', async request => service.opportunities(request.query.after ? id.parse(request.query.after) : ''));
   app.get<{ Params: { id: string } }>('/v1/orders/:id/control', async request =>
     service.inspect(actor(request.headers.authorization), id.parse(request.params.id)));

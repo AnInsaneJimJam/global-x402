@@ -26,14 +26,16 @@ export const expected = {
   fundedAt: '2026-10-07T09:00:00Z', purchaseDeadline: '2026-10-07T12:00:00Z',
 };
 
-export function orderEmail(overrides: Partial<{ from: string; date: string; body: string }> = {}) {
+export function orderEmail(overrides: Partial<{ from: string; date: string; body: string; nonce: string;
+  orderNo: string; total: string }> = {}) {
+  const nonce = overrides.nonce ?? 'GOB-7F3K';
   const body = overrides.body ?? [
-    'Hello Alice Doe GOB-7F3K,',
+    `Hello Alice Doe ${nonce},`,
     'Your order has been placed.',
-    'Order #: 403-1234567-7654321',
+    `Order #: ${overrides.orderNo ?? '403-1234567-7654321'}`,
     'Item: Coca-Cola Original 330ml x 1',
-    'Order Total: INR 50.00',
-    'Ship to: Alice Doe GOB-7F3K, Synthetic Street, Demo City',
+    `Order Total: ${overrides.total ?? 'INR 50.00'}`,
+    `Ship to: Alice Doe ${nonce}, Synthetic Street, Demo City`,
   ].join('\r\n');
   return [
     `From: Orders <${overrides.from ?? 'orders@shop.example'}>`,

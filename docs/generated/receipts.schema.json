@@ -20,7 +20,8 @@
         "create_intent",
         "claim",
         "register_purchase",
-        "submit_evidence"
+        "submit_evidence",
+        "review_evidence"
       ]
     },
     "effectHash": {

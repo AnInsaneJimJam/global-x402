@@ -12,6 +12,8 @@ export const intentSchema = z.strictObject({
   clientOrderId: id,
   merchantId: id,
   sku: id,
+  // Exact product title as the merchant shows it in the order confirmation (verifier ITEM criterion).
+  itemTitle: z.string().min(1).max(300).optional(),
   quantity: z.number().int().min(1).max(100),
   // Only opaque references; no raw delivery information in the prototype.
   recipientRef: id,
@@ -25,8 +27,18 @@ export const commandSchema = z.discriminatedUnion('command', [
   z.strictObject({ command: z.literal('create_intent'), input: intentSchema }),
   z.strictObject({ command: z.literal('claim'), orderId: id }),
   z.strictObject({ command: z.literal('register_purchase'), orderId: id, purchaseOperationId: id }),
-  z.strictObject({ command: z.literal('submit_evidence'), orderId: id, purchaseOperationId: id, merchantOrderId: id }),
+  z.strictObject({ command: z.literal('submit_evidence'), orderId: id, purchaseOperationId: id, merchantOrderId: id,
+    evidenceId: z.string().regex(/^[a-f0-9]{64}$/) }),
+  z.strictObject({ command: z.literal('review_evidence'), orderId: id, decision: z.enum(['APPROVE', 'REJECT']) }),
 ]);
+// Private delivery recipient, stored once per buyer reference and revealed only to the funded filler.
+// Name is short enough that " GOB-XXXXXX" still fits merchant name fields.
+export const recipientSchema = z.strictObject({
+  name: z.string().min(1).max(38), line1: z.string().min(1).max(120), line2: z.string().max(120).optional(),
+  city: z.string().min(1).max(60), state: z.string().max(60).optional(), postalCode: z.string().min(3).max(12),
+  country: z.string().regex(/^[A-Z]{2}$/), phone: z.string().max(20).optional(),
+});
+export type Recipient = z.infer<typeof recipientSchema>;
 export type Command = z.infer<typeof commandSchema>;
 export const commitSchema = z.strictObject({ planId: id, operationId: id });
 export const purchaseObservationSchema = z.strictObject({
@@ -56,6 +68,8 @@ export type Order = {
   version: number; fillerId: string | null; claimId: string | null;
   quote?: Quote | null; orderNonce?: string | null; escrow?: Escrow | null;
   funding: 'NOT_OBSERVED' | 'PENDING' | 'CONFIRMED' | 'RECONCILING';
+  // Set by Track A's observer when funding becomes CONFIRMED; lower bound for the order placement time.
+  fundedAt?: string | null;
   purchase: { operationId: string; state: PurchaseState; merchantOrderId: string | null } | null;
   // Legacy fixture evidence is a string until Track B replaces its command.
   evidence: Evidence | string | null;
@@ -65,14 +79,15 @@ export const planSchema = z.strictObject({ id, actor: actorSchema, command: comm
   effectHash: z.string().regex(/^[a-f0-9]{64}$/), controlVersion: z.number().int().nullable(), expiresAt: z.iso.datetime() });
 export type Plan = z.infer<typeof planSchema>;
 export const receiptSchema = z.strictObject({ operationId: id, actorId: id,
-  command: z.enum(['create_intent', 'claim', 'register_purchase', 'submit_evidence']),
+  command: z.enum(['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'review_evidence']),
   effectHash: z.string().regex(/^[a-f0-9]{64}$/), status: z.literal('SUCCEEDED'), orderId: id, createdAt: z.iso.datetime() });
 export type Receipt = z.infer<typeof receiptSchema>;
 export const commandDescriptions: Record<Command['command'], { role: Actor['role']; path: string; meaning: string }> = {
   create_intent: { role: 'BUYER', path: '/v1/intents', meaning: 'Persist a fixture intent; no money moves.' },
   claim: { role: 'FILLER', path: '/v1/orders/:id/claims', meaning: 'Reserve one unfunded intent; no money moves.' },
   register_purchase: { role: 'FILLER', path: '/v1/orders/:id/purchase-attempts', meaning: 'Record an obligation before actor-local checkout; registration is not placement.' },
-  submit_evidence: { role: 'FILLER', path: '/v1/orders/:id/evidence', meaning: 'Bind an actor-reported merchant order for future verification; acceptance is not proof.' },
+  submit_evidence: { role: 'FILLER', path: '/v1/orders/:id/evidence', meaning: 'Bind an uploaded order-confirmation email to the purchase and queue DKIM verification; acceptance is not proof.' },
+  review_evidence: { role: 'BUYER', path: '/v1/orders/:id/evidence-reviews', meaning: 'Manually approve or reject evidence that did not pass automatic verification; approval allows the result to be submitted.' },
 };
 export const integration = {
   payment: { protocol: 'MASUMI_NATIVE', network: 'cardano:preprod', execution: 'MOCK', custody: 'OPERATOR_HELD_TEST_WALLETS' },
@@ -135,7 +150,7 @@ export class DomainError extends Error {
 export function capabilities() {
   return {
     contractVersion: '0.2.0', schemaHash: hash(z.toJSONSchema(commandSchema)), integration,
-    commands: ['create_intent', 'claim', 'register_purchase', 'submit_evidence'],
+    commands: ['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'review_evidence'],
     configured: true, tested: false, availableNow: true,
     scope: 'LOCAL_CONTROL_CONTRACT_ONLY',
     blockers: ['LIVE_FUNDING_UNVALIDATED', 'MERCHANT_NOT_SELECTED', 'CRE_NOT_CONNECTED', 'WALLET_AUTH_NOT_IMPLEMENTED'],

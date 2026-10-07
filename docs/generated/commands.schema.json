@@ -29,6 +29,11 @@
               "maxLength": 128,
               "pattern": "^[a-zA-Z0-9_-]+$"
             },
+            "itemTitle": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
             "quantity": {
               "type": "integer",
               "minimum": 1,
@@ -159,13 +164,46 @@
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "evidenceId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
         }
       },
       "required": [
         "command",
         "orderId",
         "purchaseOperationId",
-        "merchantOrderId"
+        "merchantOrderId",
+        "evidenceId"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "const": "review_evidence"
+        },
+        "orderId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "APPROVE",
+            "REJECT"
+          ]
+        }
+      },
+      "required": [
+        "command",
+        "orderId",
+        "decision"
       ],
       "additionalProperties": false
     }

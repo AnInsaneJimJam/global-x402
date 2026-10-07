@@ -9,7 +9,8 @@ Prepare a typed command with POST /v1/action-plans. Commit the returned planId w
 - create_intent: BUYER; POST /v1/intents. Persist a fixture intent; no money moves.
 - claim: FILLER; POST /v1/orders/:id/claims. Reserve one unfunded intent; no money moves.
 - register_purchase: FILLER; POST /v1/orders/:id/purchase-attempts. Record an obligation before actor-local checkout; registration is not placement.
-- submit_evidence: FILLER; POST /v1/orders/:id/evidence. Bind an actor-reported merchant order for future verification; acceptance is not proof.
+- submit_evidence: FILLER; POST /v1/orders/:id/evidence. Bind an uploaded order-confirmation email to the purchase and queue DKIM verification; acceptance is not proof.
+- review_evidence: BUYER; POST /v1/orders/:id/evidence-reviews. Manually approve or reject evidence that did not pass automatic verification; approval allows the result to be submitted.
 
 Inspect GET /v1/orders/:id/control before choosing the next action. After timeout, retrieve GET /v1/operations/:operationId and reconcile the same operation; do not mint a replacement ID.
 An actor-local unknown or already ordered purchase blocks another checkout. Stopping the local run keeps reconciliation available.

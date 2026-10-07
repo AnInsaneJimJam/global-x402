@@ -7,6 +7,8 @@ export type ExpectedOrder = {
   orderId: string; claimId: string; termsHash: string; nonce: string; merchantId: string;
   itemMatch: string; quantity: number; totalMinor: string; currency: string;
   fundedAt: string; purchaseDeadline: string;
+  // Filler-declared order id; when given, the email's own order id must equal it (uniqueness is bound to it).
+  merchantOrderId?: string;
 };
 export type DkimKeyResolver = (domain: string, selector: string) => Promise<string | null>;
 export type Criterion = { id: string; expected: string; observed: string | null; result: 'PASS' | 'FAIL' | 'UNKNOWN' };
@@ -80,17 +82,21 @@ export async function verifyOrderEmail(i: {
     { id: 'DKIM_SIGNATURE', expected: [...allowed].join('|'), result: dkimResult,
       observed: valid?.signingDomain ?? (ours[0] ? `${ours[0].signingDomain}: ${ours[0].status.result}` : 'no merchant signature') },
     // The nonce binds the delivery recipient, so it must be in the merchant's ship-to name.
-    check('NONCE', e.nonce, facts.recipientName === null ? null : facts.recipientName.includes(e.nonce) ? e.nonce : 'absent',
-      !!facts.recipientName?.includes(e.nonce)),
+    // An empty expected nonce would match any name, so it can never pass.
+    check('NONCE', e.nonce, facts.recipientName === null || !e.nonce ? null : facts.recipientName.includes(e.nonce) ? e.nonce : 'absent',
+      !!e.nonce && !!facts.recipientName?.includes(e.nonce)),
     // Exactly one purchased line, and it must be the accepted item exactly (no substring: "X (Pack of 24)" ≠ "X").
     check('ITEM', e.itemMatch, item ? item.name : facts.items.length ? `${facts.items.length} item lines` : null,
       !!item && normalize(item.name) === normalize(e.itemMatch)),
     check('QUANTITY', String(e.quantity), item ? String(item.quantity) : null, item?.quantity === e.quantity),
     check('TOTAL', `${e.currency} ${e.totalMinor}`, total, total === `${e.currency} ${e.totalMinor}`),
-    check('MERCHANT_ORDER_ID', 'present', facts.merchantOrderId, true),
-    check('PLACED_AFTER_FUNDING', e.fundedAt, placedAt?.toISOString() ?? null,
+    check('MERCHANT_ORDER_ID', e.merchantOrderId ?? 'present', facts.merchantOrderId,
+      e.merchantOrderId === undefined || facts.merchantOrderId === e.merchantOrderId),
+    // A missing bound (e.g. funding time not yet recorded) is UNKNOWN, not a pass or a fail.
+    check('PLACED_AFTER_FUNDING', e.fundedAt, placedAt && !Number.isNaN(Date.parse(e.fundedAt)) ? placedAt.toISOString() : null,
       !!placedAt && placedAt.getTime() >= Date.parse(e.fundedAt)),
-    check('PLACED_BEFORE_DEADLINE', e.purchaseDeadline, placedAt?.toISOString() ?? null,
+    check('PLACED_BEFORE_DEADLINE', e.purchaseDeadline,
+      placedAt && !Number.isNaN(Date.parse(e.purchaseDeadline)) ? placedAt.toISOString() : null,
       !!placedAt && placedAt.getTime() <= Date.parse(e.purchaseDeadline)),
   ];
   return {
