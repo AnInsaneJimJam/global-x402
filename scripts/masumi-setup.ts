@@ -20,8 +20,17 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
   if (!response.ok) throw new Error(`${method} ${path} → HTTP ${response.status} ${json.error?.message ?? ''}`.trim());
   return json.data as T;
 }
-const updates = new Map<string, string>();
-const set = (name: string, value: string) => { if (root[name] !== value) updates.set(name, value); };
+// Upsert into the ignored root .env immediately (so created keys are never lost), without echoing values.
+let text = rootText;
+const written: string[] = [];
+async function set(name: string, value: string) {
+  if (root[name] === value) return;
+  root[name] = value;
+  text = new RegExp(`^${name}=.*$`, 'm').test(text) ? text.replace(new RegExp(`^${name}=.*$`, 'm'), `${name}=${value}`)
+    : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${name}=${value}\n`;
+  await writeFile(rootPath, text, { mode: 0o600 });
+  written.push(name);
+}
 
 type Wallet = { id: string; type: string; walletVkey: string; walletAddress: string };
 const { Wallets } = await api<{ Wallets: Wallet[] }>('GET', '/wallet/list?take=100');
@@ -33,14 +42,18 @@ for (const [prefix, wallet] of [['BUYER', purchasing], ['FILLER', selling]] as c
   if (root[`${prefix}_MASUMI_TOKEN`]) { console.log(`${prefix} key: exists`); continue; }
   const key = await api<{ token: string }>('POST', '/api-key', { canRead: true, canPay: true, canAdmin: false, usageLimited: 'false', UsageCredits: [],
     NetworkLimit: ['Preprod'], walletScopeEnabled: true, WalletScopeHotWalletIds: [wallet.id] });
-  set(`${prefix}_MASUMI_TOKEN`, key.token);
+  await set(`${prefix}_MASUMI_TOKEN`, key.token);
   console.log(`${prefix} key: written (scoped to ${wallet.type} wallet, Preprod only)`);
 }
-set('BUYER_MASUMI_URL', base); set('FILLER_MASUMI_URL', base); set('ESCROW_ASSET_ID', root.ESCROW_ASSET_ID ?? TUSDM);
+await set('BUYER_MASUMI_URL', base); await set('FILLER_MASUMI_URL', base); await set('ESCROW_ASSET_ID', root.ESCROW_ASSET_ID ?? TUSDM);
 
 type Entry = { agentIdentifier: string | null; state: string; SmartContractWallet?: { walletVkey: string } };
-const registered = async () => (await api<{ Assets: Entry[] }>('GET', '/registry?network=Preprod&limit=100')).Assets
-  .find(entry => entry.SmartContractWallet?.walletVkey === selling.walletVkey);
+// The registry list defaults to V1 sources; filter for V2. Prefer an already confirmed registration.
+const registered = async () => {
+  const mine = (await api<{ Assets: Entry[] }>('GET', '/registry?network=Preprod&limit=100&filterPaymentSourceType=Web3CardanoV2')).Assets
+    .filter(entry => entry.SmartContractWallet?.walletVkey === selling.walletVkey);
+  return mine.find(entry => entry.state === 'RegistrationConfirmed') ?? mine[0];
+};
 let entry = await registered();
 if (!entry) {
   const { PaymentSources } = await api<{ PaymentSources: { network: string; paymentSourceType: string; smartContractAddress: string }[] }>(
@@ -63,14 +76,7 @@ for (let tries = 0; !(entry?.state === 'RegistrationConfirmed' && entry.agentIde
   entry = await registered();
   process.stdout.write(`  registration state: ${entry?.state ?? 'pending'}\r`);
 }
-set('FILLER_AGENT_IDENTIFIER', entry.agentIdentifier);
+await set('FILLER_AGENT_IDENTIFIER', entry.agentIdentifier);
 console.log(`\nfiller agent: ${entry.agentIdentifier}`);
 
-// Upsert into the ignored root .env without echoing values.
-let text = rootText;
-for (const [name, value] of updates) {
-  text = new RegExp(`^${name}=.*$`, 'm').test(text) ? text.replace(new RegExp(`^${name}=.*$`, 'm'), `${name}=${value}`)
-    : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${name}=${value}\n`;
-}
-await writeFile(rootPath, text, { mode: 0o600 });
-console.log(`.env updated: ${[...updates.keys()].join(', ') || 'nothing to change'}`);
+console.log(`.env updated: ${written.join(', ') || 'nothing to change'}`);
