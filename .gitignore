@@ -5,3 +5,8 @@ coverage/
 !.env.example
 .local/
 *.log
+.DS_Store
+.evidence/
+# Real merchant emails contain personal data; only synthetic fixtures may be committed.
+*.eml
+!fixtures/synthetic/**/*.eml

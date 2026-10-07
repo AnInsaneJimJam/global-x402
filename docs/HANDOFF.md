@@ -1,5 +1,7 @@
 # Global Order Book — implementation handoff
 
+> **Superseded for task planning by the two-track split in [handoff/README.md](handoff/README.md)** (7 October 2026). This file still accurately describes the code that existed before the split. D5 and D7 below are now resolved in [00-decisions.md](00-decisions.md).
+
 **As of 7 October 2026 (Asia/Kolkata).** Continue from branch `feature/agent-control-recovery` in the private repository `AnInsaneJimJam/global-x402`. The working implementation starts at commit `3167802`; this branch adds the handoff. Treat this document as a navigation and status record. The numbered design documents remain authoritative for product behavior and interfaces.
 
 ## One-minute orientation
