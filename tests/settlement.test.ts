@@ -18,11 +18,10 @@ async function setup() {
   const c = await context();
   const dir = await mkdtemp(join(tmpdir(), 'gob-settle-'));
   const chain = new ScriptedSettlement();
-  // The fixture email is dated 10:00Z; give the escrow a window around it.
-  const now = () => new Date('2026-10-07T09:00:00Z');
-  const handlers = { ...settlementJobs({ adapter: chain, agentIdentifier: 'a'.repeat(64), now, pollMs: 0 }),
+  // Real clock throughout: escrow deadlines and the funding guard both use wall time.
+  const handlers = { ...settlementJobs({ adapter: chain, agentIdentifier: 'a'.repeat(64), pollMs: 0 }),
     verify_evidence: verifyEvidenceJob({ merchants: { 'fixture-merchant': fixtureMerchant }, resolveDkimKey: async () => key.record,
-      evidenceDir: dir, now: () => new Date('2026-10-07T10:05:00Z') }) };
+      evidenceDir: dir }) };
   // Bounded drain: observe_escrow reschedules itself until a terminal state.
   const drain = async (max = 20) => { for (let n = 0; n < max && await runOne(c.store, handlers); n++) { /* next */ } };
   const order = async (clientOrderId: string) => {
@@ -54,7 +53,7 @@ test('escrow lifecycle: terms at claim, buyer funds, PASS submits result, payout
     await s.act(filler, { command: 'register_purchase', orderId, purchaseOperationId: 'p1' }, 'reg');
     await s.c.service.observePurchase(filler, orderId, { purchaseOperationId: 'p1', state: 'ORDERED', merchantOrderId: '403-1234567-7654321' });
     const nonce = (await assignment(s.c.store, filler, orderId)).nonce!;
-    const { evidenceId } = await storeEvidence(s.c.store, filler, orderId, await sign(orderEmail({ nonce }), key.privateKey), s.dir);
+    const { evidenceId } = await storeEvidence(s.c.store, filler, orderId, await sign(orderEmail({ nonce, date: new Date(Date.now() + 1000).toUTCString() }), key.privateKey), s.dir);
     await s.act(filler, { command: 'submit_evidence', orderId, purchaseOperationId: 'p1', merchantOrderId: '403-1234567-7654321', evidenceId }, 'ev');
     await s.drain();
     view = await s.c.service.inspect(buyer, orderId);
