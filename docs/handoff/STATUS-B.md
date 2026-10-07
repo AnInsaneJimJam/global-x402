@@ -12,7 +12,7 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 | B3 Nonce + recipient + assignment | DONE | `claim` sets `GOB-XXXXXX` (unique index); `PUT /v1/recipients/:ref` insert-only; `GET /v1/orders/:id/assignment` funded-filler/buyer only, name + nonce |
 | B4 Evidence upload + submit | DONE | `POST /v1/orders/:id/evidence-uploads` (message/rfc822, ≤1 MB, 0600 file under `EVIDENCE_DIR`); `submit_evidence` requires that `evidenceId`, enqueues `verify_evidence` |
 | B5 verify_evidence job + manual review | DONE | `apps/worker/jobs/verify_evidence.ts` (verifies outside tx, writes only if evidence still current, PASS → `submit_result`); `review_evidence` buyer command (MANUAL label) |
-| B6 Filler agent loop | NOT STARTED | |
+| B6 Filler agent loop | DONE | `examples/filler-agent/{agent,main}.ts` (`npm run filler`): rank → claim → wait funding → human checkout via `humanCheckout` adapter + `ActorRuntime` journal over HTTP (`httpCoordinator`) → upload .eml → submit → wait verdict. `unsure` blocks re-buying; rerun with order id reconciles |
 | B7 Failure tests | NOT STARTED | |
 | B8 Dashboard (stretch) | NOT STARTED | |
 | B9 CRE simulation (stretch) | NOT STARTED | |
@@ -36,6 +36,8 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 - `intent.itemTitle` (optional, exact merchant title) is accepted by `create_intent`; buyer runner should send it.
 
 ## Session log
+
+- 2026-10-07 — B6 filler agent: runtime accepts LIVE checkout via a coordinator port (HTTP or in-process); `ControlClient` gained opportunities/assignment/uploadEvidence/observePurchase; opportunities list now includes currency + itemTitle. Two end-to-end agent tests over the real HTTP handlers. 43/43 tests. PR #3 awaits review/merge (auto-merge was blocked as merge-without-review).
 
 - 2026-10-07 — Review fixes on PR #3 (see SHARED-CONTRACT changelog): per-buyer recipient refs, final manual decisions, upload cap/state gate, scoped rfc822 parser, 4xx error mapping, and ship-to name/city/state binding. **Residual risk:** same-city street diversion is invisible in Amazon.in emails (they show only city/state). 41/41 tests.
 

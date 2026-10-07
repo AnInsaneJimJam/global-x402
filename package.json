@@ -14,7 +14,8 @@
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
     "demo": "node --env-file-if-exists=.env --import tsx examples/control-demo.ts",
     "contracts:generate": "node --import tsx scripts/generate-contracts.ts",
-    "contracts:check": "node --import tsx scripts/generate-contracts.ts --check"
+    "contracts:check": "node --import tsx scripts/generate-contracts.ts --check",
+    "filler": "node --env-file-if-exists=.env --import tsx examples/filler-agent/main.ts"
   },
   "dependencies": {
     "fastify": "5.12.5",

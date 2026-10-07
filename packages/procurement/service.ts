@@ -156,7 +156,8 @@ export class Procurement {
       "SELECT data FROM gob_orders WHERE data->>'fillerId' IS NULL AND id>$1 ORDER BY id LIMIT 101", [after]);
     const page = rows.rows.slice(0, 100);
     return { orders: page.map(({ data: order }) => ({ id: order.id, merchantId: order.intent.merchantId,
-      sku: order.intent.sku, quantity: order.intent.quantity, fiatMinor: order.intent.fiatMinor,
+      sku: order.intent.sku, itemTitle: order.intent.itemTitle ?? null, quantity: order.intent.quantity,
+      currency: order.intent.currency, fiatMinor: order.intent.fiatMinor,
       netTokenUnits: order.intent.netTokenUnits, assetId: order.intent.assetId, network: order.intent.network,
       status: 'AWAITING_FUNDING', integration })), overflow: rows.rows.length > 100,
       nextAfter: rows.rows.length > 100 ? page.at(-1)?.data.id : null };
