@@ -90,3 +90,17 @@ test('refund path: buyer requests, filler authorizes, refund observed', async ()
     assert.deepEqual(s.chain.calls, ['createEscrowTerms', 'fund', 'requestRefund', 'authorizeRefund']);
   } finally { await s.close(); }
 });
+
+test('live funding is limited to the configured buyer and capped per escrow', async () => {
+  const s = await setup();
+  try {
+    const orderId = await s.order('guard');
+    await s.c.store.pool.query("UPDATE gob_orders SET data = jsonb_set(data, '{escrow,execution}', '\"LIVE\"') WHERE id=$1", [orderId]);
+    delete process.env.FUNDING_BUYER_ID;
+    await assert.rejects(s.c.service.prepare(buyer, { command: 'fund_escrow', orderId }), /NO_FUNDING_WALLET_FOR_BUYER/);
+    process.env.FUNDING_BUYER_ID = buyer.id; process.env.MAX_ESCROW_BASE_UNITS = '1';
+    await assert.rejects(s.c.service.prepare(buyer, { command: 'fund_escrow', orderId }), /ESCROW_ABOVE_CAP/);
+    delete process.env.MAX_ESCROW_BASE_UNITS;
+    await s.c.service.prepare(buyer, { command: 'fund_escrow', orderId });
+  } finally { delete process.env.FUNDING_BUYER_ID; await s.close(); }
+});
