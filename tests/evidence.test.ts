@@ -65,7 +65,7 @@ test('claim issues a nonce; recipient is immutable and revealed only to the fund
   await confirmFixtureFunding(c.store, orderId, claimId);
   const view = await assignment(c.store, filler, orderId);
   assert.match(view.nonce!, /^GOB-[A-HJ-NP-Z2-9]{6}$/);
-  assert.equal(view.recipient.name, `Alice Doe ${view.nonce}`);
+  assert.equal(view.recipient.name, `${view.nonce} Alice Doe`);
 }));
 
 test('valid signed confirmation passes DKIM verification and queues submit_result', () => withContext(async (c, dir) => {

@@ -58,7 +58,7 @@ test('genuine email with wrong order facts fails the matching criterion', async 
     ['Coca-Cola Original 330ml x 1', 'Coca-Cola Original 330ml (Pack of 24) x 1', 'ITEM'],
     // Item named only in a recommendation, nonce only in a gift message, extra item line.
     ['Item: Coca-Cola Original 330ml x 1', 'Item: Pepsi 330ml x 1\r\nCustomers also bought: Coca-Cola Original 330ml', 'ITEM'],
-    ['Ship to: Alice Doe GOB-7F3K,', 'Gift message: GOB-7F3K\r\nShip to: Mallory,', 'NONCE'],
+    ['Ship to: GOB-7F3K Alice Doe,', 'Gift message: GOB-7F3K\r\nShip to: Mallory,', 'NONCE'],
     ['Order Total:', 'Item: Coca-Cola Original 330ml x 1\r\nOrder Total:', 'ITEM'],
   ];
   const body = orderEmail().split('\r\n\r\n')[1]!;
@@ -68,6 +68,12 @@ test('genuine email with wrong order facts fails the matching criterion', async 
     assert.equal(result.verdict, 'FAIL', criterion);
     assert.ok(failed(result).includes(criterion), `${criterion}: ${failed(result)}`);
   }
+});
+
+test('an email in the same second as funding is not treated as earlier', async () => {
+  const raw = await sign(orderEmail({ date: 'Wed, 07 Oct 2026 09:00:00 +0000' }), key.privateKey);
+  const result = await verify(raw, { expected: { ...expected, fundedAt: '2026-10-07T09:00:00.700Z' } });
+  assert.ok(!failed(result).includes('PLACED_AFTER_FUNDING'));
 });
 
 test('order placed before funding or after the deadline fails', async () => {
@@ -92,6 +98,12 @@ test('malformed header lines that parsers may split differently are rejected', a
     assert.equal(result.verdict, 'FAIL');
     assert.ok(failed(result).includes('DKIM_SIGNATURE'));
   }
+});
+
+test('full-name merchants still require the exact full name', async () => {
+  const body = orderEmail().split('\r\n\r\n')[1]!.replace('Ship to: GOB-7F3K Alice Doe,', 'Ship to: GOB-7F3K,');
+  const result = await verify(await sign(orderEmail({ body }), key.privateKey));
+  assert.ok(failed(result).includes('RECIPIENT_NAME'));
 });
 
 test('T25: instructions inside the email are data, not commands', async () => {

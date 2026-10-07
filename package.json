@@ -15,7 +15,11 @@
     "demo": "node --env-file-if-exists=.env --import tsx examples/control-demo.ts",
     "contracts:generate": "node --import tsx scripts/generate-contracts.ts",
     "contracts:check": "node --import tsx scripts/generate-contracts.ts --check",
-    "filler": "node --env-file-if-exists=.env --import tsx examples/filler-agent/main.ts"
+    "filler": "node --env-file-if-exists=.env --import tsx examples/filler-agent/main.ts",
+    "masumi:setup": "node --env-file-if-exists=.env --import tsx scripts/masumi-setup.ts",
+    "buyer": "node --env-file-if-exists=.env --import tsx examples/buyer-agent/main.ts",
+    "preview": "node --env-file-if-exists=.env --import tsx scripts/preview.ts",
+    "spike": "node --env-file-if-exists=.env --import tsx scripts/live-spike.ts"
   },
   "dependencies": {
     "fastify": "5.12.5",

@@ -6,6 +6,7 @@ import { capabilities, commandSchema, commitSchema, DomainError, id, purchaseObs
 import type { Actor } from '../../packages/contracts/index.js';
 import type { Procurement } from '../../packages/procurement/service.js';
 import { assignment, putRecipient, storeEvidence } from '../../packages/procurement/evidence.js';
+import { escrowTerms } from '../../packages/procurement/settlement-view.js';
 
 export function createApp(service: Procurement, sessions: ReadonlyMap<string, Actor>) {
   const app = Fastify({ logger: false, bodyLimit: 32 * 1024 });
@@ -30,16 +31,17 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   // Minimal dashboard (apps/web): static files, strict CSP, all data fetched from the same API.
   const web = (file: string) => readFileSync(new URL(`../web/${file}`, import.meta.url), 'utf8');
   const csp = "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'";
-  const page = web('index.html'), script = web('app.js');
+  const page = web('index.html'), script = web('app.js'), style = web('app.css');
   app.get('/', async (_request, reply) => reply.header('content-security-policy', csp).header('x-content-type-options', 'nosniff')
     .type('text/html; charset=utf-8').send(page));
   app.get('/app.js', async (_request, reply) => reply.header('x-content-type-options', 'nosniff')
     .type('text/javascript; charset=utf-8').send(script));
+  app.get('/app.css', async (_request, reply) => reply.header('x-content-type-options', 'nosniff').type('text/css; charset=utf-8').send(style));
   app.get('/v1/capabilities', async () => capabilities());
   app.get('/v1/capabilities/commands', async () => z.toJSONSchema(commandSchema));
   app.get('/v1/health', async () => ({ status: 'OK', scope: 'LOCAL_CONTROL_CONTRACT_ONLY' }));
   app.post('/v1/action-plans', async request => service.prepare(actor(request.headers.authorization), request.body));
-  function commit(request: FastifyRequest, command: 'create_intent' | 'claim' | 'register_purchase' | 'submit_evidence' | 'review_evidence', orderId?: string) {
+  function commit(request: FastifyRequest, command: 'create_intent' | 'claim' | 'register_purchase' | 'submit_evidence' | 'review_evidence' | 'fund_escrow' | 'request_refund' | 'authorize_refund', orderId?: string) {
     const input = commitSchema.parse(request.body);
     const key = id.parse(request.headers['idempotency-key']);
     return service.act(actor(request.headers.authorization), input.planId, input.operationId,
@@ -50,9 +52,14 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   app.post<{ Params: { id: string } }>('/v1/orders/:id/purchase-attempts', async request => commit(request, 'register_purchase', id.parse(request.params.id)));
   app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence', async request => commit(request, 'submit_evidence', id.parse(request.params.id)));
   app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence-reviews', async request => commit(request, 'review_evidence', id.parse(request.params.id)));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/funding', async request => commit(request, 'fund_escrow', id.parse(request.params.id)));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/refund-requests', async request => commit(request, 'request_refund', id.parse(request.params.id)));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/refund-authorizations', async request => commit(request, 'authorize_refund', id.parse(request.params.id)));
   // Track B: private recipient, funded-only assignment reveal and raw .eml evidence upload.
   app.put<{ Params: { ref: string } }>('/v1/recipients/:ref', async request =>
     putRecipient(service.store, actor(request.headers.authorization), request.params.ref, request.body));
+  app.get<{ Params: { id: string } }>('/v1/orders/:id/escrow-terms', async request =>
+    escrowTerms(service.store, actor(request.headers.authorization), request.params.id));
   app.get<{ Params: { id: string } }>('/v1/orders/:id/assignment', async request =>
     assignment(service.store, actor(request.headers.authorization), request.params.id));
   // The 1 MB raw-email parser exists only inside this encapsulated scope; other routes keep 32 KB JSON.

@@ -23,7 +23,7 @@ export const fixtureMerchant: MerchantConfig = {
 
 export const expected = {
   orderId: 'order-1', claimId: 'claim-1', termsHash: 'a'.repeat(64), nonce: 'GOB-7F3K',
-  recipientName: 'Alice Doe GOB-7F3K', recipientCity: 'Demo City', recipientRegion: 'Demo State',
+  recipientName: 'GOB-7F3K Alice Doe', recipientCity: 'Demo City', recipientRegion: 'Demo State',
   merchantId: 'fixture-merchant', itemMatch: 'Coca-Cola Original 330ml', quantity: 1,
   totalMinor: '5000', currency: 'INR',
   fundedAt: '2026-10-07T09:00:00Z', purchaseDeadline: '2026-10-07T12:00:00Z',
@@ -33,12 +33,12 @@ export function orderEmail(overrides: Partial<{ from: string; date: string; body
   orderNo: string; total: string }> = {}) {
   const nonce = overrides.nonce ?? 'GOB-7F3K';
   const body = overrides.body ?? [
-    `Hello Alice Doe ${nonce},`,
+    `Hello ${nonce},`,
     'Your order has been placed.',
     `Order #: ${overrides.orderNo ?? '403-1234567-7654321'}`,
     'Item: Coca-Cola Original 330ml x 1',
     `Order Total: ${overrides.total ?? 'INR 50.00'}`,
-    `Ship to: Alice Doe ${nonce}, Synthetic Street, Demo City, Demo State`,
+    `Ship to: ${nonce} Alice Doe, Synthetic Street, Demo City, Demo State`,
   ].join('\r\n');
   return [
     `From: Orders <${overrides.from ?? 'orders@shop.example'}>`,

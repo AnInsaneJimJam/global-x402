@@ -1,0 +1,12 @@
+{
+  "clientOrderId": "demo-coke-1",
+  "merchantId": "amazon-in",
+  "sku": "B00EXAMPLE",
+  "itemTitle": "REPLACE with the exact product title as Amazon.in shows it",
+  "quantity": 1,
+  "currency": "INR",
+  "fiatMinor": "5000",
+  "netTokenUnits": "1000000",
+  "recipientRef": "demo-home",
+  "recipient": { "name": "Demo Recipient", "line1": "REPLACE", "city": "REPLACE", "state": "REPLACE", "postalCode": "000000", "country": "IN" }
+}

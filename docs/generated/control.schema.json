@@ -528,7 +528,10 @@
           },
           "kind": {
             "type": "string",
-            "const": "FIXTURE_LOCKED"
+            "enum": [
+              "FIXTURE_LOCKED",
+              "ESCROW_LOCKED"
+            ]
           }
         },
         "required": [

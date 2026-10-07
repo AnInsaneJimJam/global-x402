@@ -1,4 +1,5 @@
 import { commandDescriptions, commandSchema, controlSchema, planSchema, purchaseObservationSchema, receiptSchema } from './index.js';
+import { DomainError } from './index.js';
 import type { Actor, Command, Plan } from './index.js';
 
 export class ControlClient {
@@ -15,7 +16,13 @@ export class ControlClient {
       ...(raw ? { body: Buffer.from(raw.bytes) } : body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (!response.ok) {
-      const code = await response.json().then((json: { error?: { code?: string } }) => json.error?.code ?? 'UNKNOWN', () => 'UNKNOWN');
+      type Failure = { code?: string; effectStatus?: string };
+      const error: Failure = await response.json().then((json: { error?: Failure }) => json.error ?? {}, () => ({}));
+      const code = error.code ?? 'UNKNOWN';
+      // A server-confirmed rejection of a new command is a domain error with no effect; anything else stays uncertain.
+      if (response.status >= 400 && response.status < 500 && error.effectStatus === 'NOT_STARTED' && response.status !== 402) {
+        throw Object.assign(new DomainError(code, response.status), { message: `CONTROL_HTTP_${response.status} ${code}: rejected, no effect` });
+      }
       // Never autonomously pay a 402 or infer failed external effects from HTTP status.
       throw new Error(`CONTROL_HTTP_${response.status} ${code}: inspect the existing operation before retrying an effect`);
     }
@@ -23,6 +30,14 @@ export class ControlClient {
   }
   async prepare(command: Command) {
     return planSchema.parse(await this.request('/v1/action-plans', 'POST', commandSchema.parse(command)));
+  }
+  // Prepare + commit, re-preparing when the order moved underneath the plan (STALE_PLAN is a definite no-effect
+  // rejection; the operation identity is version-independent, so retrying the same operationId is safe).
+  async commit(command: Command, operationId: string, attempts = 5) {
+    for (let attempt = 1; ; attempt++) {
+      try { return await this.act(await this.prepare(command), operationId); }
+      catch (error) { if (attempt >= attempts || !/ STALE_PLAN:/.test(String(error))) throw error; }
+    }
   }
   async act(plan: Plan, operationId: string) {
     const checked = planSchema.parse(plan);
@@ -48,6 +63,9 @@ export class ControlClient {
     return await this.request(`/v1/orders/${encodeURIComponent(orderId)}/evidence-uploads`, 'POST', undefined, undefined,
       { type: 'message/rfc822', bytes }) as { evidenceId: string; sha256: string; sizeBytes: number };
   }
+  async putRecipient(ref: string, recipient: unknown) {
+    return await this.request(`/v1/recipients/${encodeURIComponent(ref)}`, 'PUT', recipient) as { ref: string; stored: boolean };
+  }
   async observePurchase(orderId: string, observation: unknown) {
     await this.request(`/v1/orders/${encodeURIComponent(orderId)}/purchase-observations`, 'POST', purchaseObservationSchema.parse(observation));
   }
@@ -67,7 +85,7 @@ export function httpCoordinator(client: ControlClient) {
     act: (_actor: Actor, planId: string, operationId: string) => {
       const plan = plans.get(planId);
       if (!plan) throw new Error('PLAN_NOT_PREPARED_BY_THIS_CLIENT');
-      return client.act(plan, operationId);
+      return client.commit(plan.command, operationId);
     },
     observePurchase: (_actor: Actor, orderId: string, observation: unknown) => client.observePurchase(orderId, observation),
   };

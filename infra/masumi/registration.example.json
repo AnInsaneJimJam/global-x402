@@ -1,0 +1,21 @@
+{
+  "network": "Preprod",
+  "type": "Standard",
+  "sellingWalletVkey": "REPLACE_WITH_THE_SEEDED_SELLING_WALLET_PAYMENT_KEY_HASH",
+  "name": "Global Order Book Preprod filler",
+  "description": "Preprod test identity for human-assisted order placement. Operator-held test wallet.",
+  "apiBaseUrl": "https://REPLACE_WITH_YOUR_TEST_SERVICE_HOST",
+  "Tags": ["procurement", "preprod-test"],
+  "ExampleOutputs": [],
+  "Capability": { "name": "human-assisted-order-placement", "version": "0.1.0" },
+  "Author": { "name": "Global Order Book demo operator" },
+  "supportedPaymentSources": [
+    {
+      "chain": "Cardano",
+      "network": "Preprod",
+      "paymentSourceType": "Web3CardanoV2",
+      "address": "addr_test1wzs4e6wc95hkwezlccjw9mdvq0r0rsgx6zk34avptga3ftgn37w4g",
+      "pricing": { "pricingType": "Dynamic" }
+    }
+  ]
+}

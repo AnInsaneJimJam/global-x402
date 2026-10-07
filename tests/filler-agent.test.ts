@@ -65,7 +65,7 @@ test('filler agent ranks, claims, waits for funding, hands checkout to the human
       ask: async question => {
         asked.push(question);
         if (question.includes('merchant order number')) {
-          assert.match(question, /name: Alice Doe GOB-[A-Z2-9]{6}/);
+          assert.match(question, /name: GOB-[A-Z2-9]{6} Alice Doe/);
           return ORDER_NO;
         }
         const nonce = (await assignment(s.c.store, filler, s.orderId)).nonce!;

@@ -40,9 +40,8 @@ export async function runFillerAgent(d: FillerAgentDeps): Promise<View | null> {
   }
   const path = (await d.ask('Download the merchant confirmation email as .eml (Gmail: ⋮ → Download message) and enter its file path: ')).trim();
   const upload = await d.client.uploadEvidence(orderId, await d.readFile(path));
-  const plan = await d.client.prepare({ command: 'submit_evidence', orderId, purchaseOperationId: purchase.operationId,
-    merchantOrderId: purchase.merchantOrderId, evidenceId: upload.evidenceId });
-  await d.client.act(plan, `evidence-${orderId}-${upload.evidenceId.slice(0, 12)}`);
+  await d.client.commit({ command: 'submit_evidence', orderId, purchaseOperationId: purchase.operationId,
+    merchantOrderId: purchase.merchantOrderId, evidenceId: upload.evidenceId }, `evidence-${orderId}-${upload.evidenceId.slice(0, 12)}`);
   const verified = await waitFor(d, orderId, v => !['NOT_STARTED', 'PENDING'].includes(v.outcome.verification), 'verification');
   d.say(`Verification: ${verified.outcome.verification}.${verified.outcome.verification === 'PASS' ? ' Result goes to escrow settlement.' :
     ' The buyer will review the evidence.'}`);
@@ -60,7 +59,7 @@ async function chooseAndClaim(d: FillerAgentDeps) {
   if (!chosen) { d.say('No open order fits the policy. Nothing claimed.'); return null; }
   d.say(`Chose ${chosen.id}: ${chosen.netTokenUnits} token units for ${chosen.fiatMinor} ${chosen.currency} minor units ` +
     '(lowest fiat per token among eligible offers; ties by earliest settlement, then id).');
-  await d.client.act(await d.client.prepare({ command: 'claim', orderId: chosen.id }), `claim-${chosen.id}`);
+  await d.client.commit({ command: 'claim', orderId: chosen.id }, `claim-${chosen.id}`);
   return chosen.id;
 }
 

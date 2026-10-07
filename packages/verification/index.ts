@@ -91,7 +91,12 @@ export async function verifyOrderEmail(i: {
     // the buyer's stored recipient as far as the merchant email shows it. Empty expectations never pass.
     check('NONCE', e.nonce, facts.recipientName === null || !e.nonce ? null : hasToken(facts.recipientName, e.nonce) ? e.nonce : 'absent',
       !!e.nonce && !!facts.recipientName && hasToken(facts.recipientName, e.nonce)),
-    same('RECIPIENT_NAME', e.recipientName, facts.recipientName),
+    // Full-name merchants: exact match. First-word merchants (Amazon.in): the visible word must be exactly the
+    // first word of "<nonce> <name>", i.e. the nonce; the buyer's name itself is not visible there (documented limit).
+    check('RECIPIENT_NAME', i.merchant.nameDisplay === 'firstWord' ? e.recipientName.split(' ')[0] ?? '' : e.recipientName,
+      e.recipientName ? facts.recipientName : null, !!e.recipientName && facts.recipientName !== null &&
+      (i.merchant.nameDisplay === 'firstWord' ? normalize(facts.recipientName) === normalize(e.recipientName.split(' ')[0] ?? '')
+        : normalize(facts.recipientName) === normalize(e.recipientName))),
     same('RECIPIENT_CITY', e.recipientCity, facts.recipientCity),
     same('RECIPIENT_REGION', e.recipientRegion, facts.recipientRegion),
     // Exactly one purchased line, and it must be the accepted item exactly (no substring: "X (Pack of 24)" ≠ "X").
@@ -103,7 +108,8 @@ export async function verifyOrderEmail(i: {
       e.merchantOrderId === undefined || facts.merchantOrderId === e.merchantOrderId),
     // A missing bound (e.g. funding time not yet recorded) is UNKNOWN, not a pass or a fail.
     check('PLACED_AFTER_FUNDING', e.fundedAt, placedAt && !Number.isNaN(Date.parse(e.fundedAt)) ? placedAt.toISOString() : null,
-      !!placedAt && placedAt.getTime() >= Date.parse(e.fundedAt)),
+      // RFC 5322 Date has whole-second precision; compare at that precision (funding time is in ms).
+      !!placedAt && placedAt.getTime() >= Math.floor(Date.parse(e.fundedAt) / 1000) * 1000),
     check('PLACED_BEFORE_DEADLINE', e.purchaseDeadline,
       placedAt && !Number.isNaN(Date.parse(e.purchaseDeadline)) ? placedAt.toISOString() : null,
       !!placedAt && placedAt.getTime() <= Date.parse(e.purchaseDeadline)),

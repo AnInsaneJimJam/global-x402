@@ -48,8 +48,9 @@ export async function assignment(store: Store, actor: Actor, orderId: string) {
     orderId: order.id, merchantId: order.intent.merchantId, sku: order.intent.sku, itemTitle: order.intent.itemTitle ?? null,
     quantity: order.intent.quantity, currency: order.intent.currency, maximumChargeMinor: order.intent.fiatMinor,
     nonce: order.orderNonce,
-    recipient: { ...recipient, name: `${recipient.name} ${order.orderNonce}` },
-    instructions: 'Order exactly this item and quantity from your own account, ship to this recipient using the name exactly as shown (including the GOB code), then upload the original confirmation email (.eml).',
+    // Amazon.in shows only the first word of the name in its confirmation, so the code goes first.
+    recipient: { ...recipient, name: `${order.orderNonce} ${recipient.name}` },
+    instructions: 'Order exactly this item and quantity from your own account, ship to this recipient using the name exactly as shown, starting with the GOB code, then upload the original confirmation email (.eml).',
   };
 }
 
@@ -86,7 +87,7 @@ const LIVE_MERCHANTS = new Set(['amazon-in', 'amazon-sg']);
 export function integrationFor(order: Order) {
   const live = LIVE_MERCHANTS.has(order.intent.merchantId);
   return {
-    payment: integration.payment,
+    payment: { ...integration.payment, execution: order.escrow?.execution ?? integration.payment.execution },
     merchant: live ? { id: order.intent.merchantId as 'amazon-in' | 'amazon-sg', environment: 'LIVE' as const, checkout: 'HUMAN_ASSISTED' as const }
       : integration.merchant,
     verifier: { execution: order.verification?.execution ?? (live ? 'APP_WORKER_DKIM' as const : integration.verifier.execution) },
