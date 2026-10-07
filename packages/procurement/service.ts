@@ -14,6 +14,28 @@ function visible(actor: Actor, order: Order) {
   return actor.role === 'BUYER' ? actor.id === order.buyerId : actor.id === order.fillerId;
 }
 
+// One plain sentence for the current state; agents and the dashboard read the same text.
+function summarize(order: Order, uncertain: boolean, placed: boolean, verification: string) {
+  const settled = order.settlement?.state;
+  if (settled === 'PAID') return 'Paid out to the filler. Order complete.';
+  if (settled === 'REFUNDED') return 'Escrow refunded to the buyer.';
+  if (settled === 'DISPUTED') return 'Disputed in escrow; waiting for resolution.';
+  if (settled === 'REFUND_PENDING') return 'Refund requested; waiting for the filler or the escrow deadline.';
+  if (settled === 'DISPUTE_WINDOW' || settled === 'SETTLEMENT_PENDING') return 'Placement verified and the result is on chain. Escrow pays the filler after unlock unless the buyer disputes.';
+  if (settled === 'RESULT_PENDING') return 'Placement verified; submitting the result to escrow.';
+  if (uncertain) return 'Checkout outcome is uncertain; reconcile it before any new purchase.';
+  if (verification === 'PENDING') return 'Confirmation email received; verifying the merchant signature.';
+  if (verification === 'FAIL' || verification === 'INCONCLUSIVE') return 'Proof did not pass automatically; the buyer needs to review it.';
+  if (verification === 'MANUAL_REJECTED') return 'Buyer rejected the proof; refund path applies.';
+  if (placed) return 'Order placed at the merchant; waiting for the confirmation email.';
+  if (order.funding === 'CONFIRMED') return 'Escrow funded. The filler can now place the order.';
+  if (order.funding === 'PENDING') return 'Funding submitted; waiting for the lock on chain.';
+  if (order.funding === 'RECONCILING') return 'Funding needs reconciliation before anything else happens.';
+  if (order.escrow) return 'Escrow terms ready; waiting for the buyer to fund.';
+  if (order.claimId) return "Claimed; waiting for escrow terms from the filler's node.";
+  return 'Open for fillers.';
+}
+
 export class Procurement {
   constructor(readonly store: Store, readonly clock: Clock = () => new Date()) {}
 
@@ -118,8 +140,7 @@ export class Procurement {
         schemaVersion: '0.2.0', scope: { kind: 'order', id: order.id }, viewer: actor,
         controlVersion: order.version, generatedAt: this.clock().toISOString(), integration: integrationFor(order),
         termsHash: order.termsHash, claimId: order.claimId,
-        summary: uncertain ? 'Reconcile the registered purchase; new checkout is blocked.' : placed ?
-          'Placement is actor-reported. Independent verification and settlement are not implemented.' : 'Local control-contract fixture; no live spending capability.',
+        summary: summarize(order, Boolean(uncertain), placed, verification.outcome),
         outcome: { placement: placed ? 'ACTOR_REPORTED' : 'UNKNOWN', verification: verification.outcome, settlement: settlement.settlement, goal: 'OPEN' },
         facts: [
           { key: 'funding', state: order.funding === 'CONFIRMED' ? 'OBSERVED' : 'NOT_OBSERVED', sourceType: settlement.fundingSource, value: order.funding },
@@ -147,11 +168,13 @@ export class Procurement {
   }
 
   async work(actor: Actor, after = '') {
-    const rows = await this.store.pool.query<{ id: string }>(
-      actor.role === 'BUYER' ? 'SELECT id FROM gob_orders WHERE buyer_id=$1 AND id>$2 ORDER BY id LIMIT 101' :
-        "SELECT id FROM gob_orders WHERE data->>'fillerId'=$1 AND id>$2 ORDER BY id LIMIT 101", [actor.id, after]);
+    const rows = await this.store.pool.query<{ id: string; data: Order }>(
+      actor.role === 'BUYER' ? 'SELECT id,data FROM gob_orders WHERE buyer_id=$1 AND id>$2 ORDER BY id LIMIT 101' :
+        "SELECT id,data FROM gob_orders WHERE data->>'fillerId'=$1 AND id>$2 ORDER BY id LIMIT 101", [actor.id, after]);
     const page = rows.rows.slice(0, 100);
     return { orders: page.map(row => row.id), scope: 'LOCAL_CONTROL_CONTRACT_ONLY', limit: 100,
+      items: page.map(({ data: o }) => ({ id: o.id, itemTitle: o.intent.itemTitle ?? o.intent.sku, currency: o.intent.currency,
+        fiatMinor: o.intent.fiatMinor, netTokenUnits: o.intent.netTokenUnits, settlement: o.settlement?.state ?? 'NONE' })),
       overflow: rows.rows.length > 100, nextAfter: rows.rows.length > 100 ? page.at(-1)?.id : null };
   }
 
