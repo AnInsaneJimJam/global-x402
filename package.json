@@ -17,10 +17,13 @@
   },
   "dependencies": {
     "fastify": "5.12.5",
+    "mailauth": "7.1.1",
+    "mailparser": "3.9.36",
     "pg": "8.23.1",
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@types/mailparser": "3.9.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.0.0",
     "tsx": "4.23.15",
