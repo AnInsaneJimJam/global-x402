@@ -4,6 +4,7 @@ import { commandSchema, controlSchema, hash, DomainError } from '../contracts/in
 import type { Actor, Command, Order, Plan, Receipt } from '../contracts/index.js';
 import { handlers } from './commands/index.js';
 import { integrationFor, verificationView } from './evidence.js';
+import { settlementView } from './settlement-view.js';
 import { Store } from './store.js';
 
 type Clock = () => Date;
@@ -112,25 +113,28 @@ export class Procurement {
       const uncertain = order.purchase && ['PREPARED', 'SUBMITTING', 'UNKNOWN'].includes(order.purchase.state);
       const placed = order.purchase?.state === 'ORDERED';
       const verification = verificationView(order, actor);
+      const settlement = settlementView(order, actor);
       return controlSchema.parse({
         schemaVersion: '0.2.0', scope: { kind: 'order', id: order.id }, viewer: actor,
         controlVersion: order.version, generatedAt: this.clock().toISOString(), integration: integrationFor(order),
         termsHash: order.termsHash, claimId: order.claimId,
         summary: uncertain ? 'Reconcile the registered purchase; new checkout is blocked.' : placed ?
           'Placement is actor-reported. Independent verification and settlement are not implemented.' : 'Local control-contract fixture; no live spending capability.',
-        outcome: { placement: placed ? 'ACTOR_REPORTED' : 'UNKNOWN', verification: verification.outcome, settlement: 'NOT_IMPLEMENTED', goal: 'OPEN' },
+        outcome: { placement: placed ? 'ACTOR_REPORTED' : 'UNKNOWN', verification: verification.outcome, settlement: settlement.settlement, goal: 'OPEN' },
         facts: [
-          { key: 'funding', state: order.funding === 'CONFIRMED' ? 'OBSERVED' : 'NOT_OBSERVED', sourceType: 'MOCK_CHAIN', value: order.funding },
+          { key: 'funding', state: order.funding === 'CONFIRMED' ? 'OBSERVED' : 'NOT_OBSERVED', sourceType: settlement.fundingSource, value: order.funding },
           { key: 'merchantPurchase', state: placed ? 'OBSERVED' : uncertain ? 'UNKNOWN' : 'NOT_OBSERVED', sourceType: 'ACTOR_REPORT', value: order.purchase },
+          ...settlement.facts,
           ...verification.facts,
         ],
-        exposure: order.funding === 'CONFIRMED' ? [{ owner: order.buyerId, assetId: order.intent.assetId, units: order.intent.netTokenUnits, kind: 'FIXTURE_LOCKED' }] : [],
-        obligations: uncertain ? [{ type: 'RECONCILE_PURCHASE', owner: order.fillerId, operationId: order.purchase?.operationId }] : placed ?
-          (order.evidence ? verification.obligations : [{ type: 'SUBMIT_EVIDENCE', owner: order.fillerId }]) : [],
+        exposure: order.funding === 'CONFIRMED' ? [{ owner: order.buyerId, assetId: order.intent.assetId, units: order.intent.netTokenUnits, kind: order.escrow?.execution === 'LIVE' ? 'ESCROW_LOCKED' : 'FIXTURE_LOCKED' }] : [],
+        obligations: [...(uncertain ? [{ type: 'RECONCILE_PURCHASE', owner: order.fillerId, operationId: order.purchase?.operationId }] : placed ?
+          (order.evidence ? verification.obligations : [{ type: 'SUBMIT_EVIDENCE', owner: order.fillerId }]) : []),
+          ...settlement.obligations],
         actions: [
           { command: 'register_purchase', status: !order.purchase && order.funding === 'CONFIRMED' && actor.role === 'FILLER' ? 'AVAILABLE' : 'BLOCKED',
             reasonCodes: order.purchase ? [placed ? 'PURCHASE_ALREADY_PLACED' : 'UNRESOLVED_PURCHASE'] : order.funding !== 'CONFIRMED' ? ['FUNDING_NOT_CONFIRMED'] : actor.role !== 'FILLER' ? ['ROLE_FORBIDDEN'] : [], requiredAuthority: 'ACTOR_LOCAL_CHECKOUT_GRANT' },
-          { command: 'fund_escrow', status: 'BLOCKED', reasonCodes: ['LIVE_FUNDING_UNVALIDATED'] },
+          ...settlement.actions,
           verification.action,
         ],
       });

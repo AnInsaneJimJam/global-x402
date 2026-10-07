@@ -39,7 +39,7 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   app.get('/v1/capabilities/commands', async () => z.toJSONSchema(commandSchema));
   app.get('/v1/health', async () => ({ status: 'OK', scope: 'LOCAL_CONTROL_CONTRACT_ONLY' }));
   app.post('/v1/action-plans', async request => service.prepare(actor(request.headers.authorization), request.body));
-  function commit(request: FastifyRequest, command: 'create_intent' | 'claim' | 'register_purchase' | 'submit_evidence' | 'review_evidence', orderId?: string) {
+  function commit(request: FastifyRequest, command: 'create_intent' | 'claim' | 'register_purchase' | 'submit_evidence' | 'review_evidence' | 'fund_escrow' | 'request_refund' | 'authorize_refund', orderId?: string) {
     const input = commitSchema.parse(request.body);
     const key = id.parse(request.headers['idempotency-key']);
     return service.act(actor(request.headers.authorization), input.planId, input.operationId,
@@ -50,6 +50,9 @@ export function createApp(service: Procurement, sessions: ReadonlyMap<string, Ac
   app.post<{ Params: { id: string } }>('/v1/orders/:id/purchase-attempts', async request => commit(request, 'register_purchase', id.parse(request.params.id)));
   app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence', async request => commit(request, 'submit_evidence', id.parse(request.params.id)));
   app.post<{ Params: { id: string } }>('/v1/orders/:id/evidence-reviews', async request => commit(request, 'review_evidence', id.parse(request.params.id)));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/funding', async request => commit(request, 'fund_escrow', id.parse(request.params.id)));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/refund-requests', async request => commit(request, 'request_refund', id.parse(request.params.id)));
+  app.post<{ Params: { id: string } }>('/v1/orders/:id/refund-authorizations', async request => commit(request, 'authorize_refund', id.parse(request.params.id)));
   // Track B: private recipient, funded-only assignment reveal and raw .eml evidence upload.
   app.put<{ Params: { ref: string } }>('/v1/recipients/:ref', async request =>
     putRecipient(service.store, actor(request.headers.authorization), request.params.ref, request.body));

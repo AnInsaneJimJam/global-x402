@@ -30,6 +30,9 @@ export const commandSchema = z.discriminatedUnion('command', [
   z.strictObject({ command: z.literal('submit_evidence'), orderId: id, purchaseOperationId: id, merchantOrderId: id,
     evidenceId: z.string().regex(/^[a-f0-9]{64}$/) }),
   z.strictObject({ command: z.literal('review_evidence'), orderId: id, decision: z.enum(['APPROVE', 'REJECT']) }),
+  z.strictObject({ command: z.literal('fund_escrow'), orderId: id }),
+  z.strictObject({ command: z.literal('request_refund'), orderId: id }),
+  z.strictObject({ command: z.literal('authorize_refund'), orderId: id }),
 ]);
 // Private delivery recipient, stored once per buyer reference and revealed only to the funded filler.
 // Name is short enough that " GOB-XXXXXX" still fits merchant name fields.
@@ -57,7 +60,9 @@ export type Quote = { fiatMinor: string; rewardMinor: string; grossBaseUnits: st
   protocolFeeBaseUnits: string; adaSubsidyLovelace: string; expiresAt: string };
 export type Deadlines = { payBy: string; submitResultBy: string; unlockAt: string; externalDisputeUnlockAt: string };
 export type Escrow = { escrowId: string; sellerAgentId: string; buyerWalletRef: string; assetId: string;
-  grossBaseUnits: string; deadlines: Deadlines; nativeState: string; lastObservedAt: string | null };
+  grossBaseUnits: string; deadlines: Deadlines; nativeState: string; lastObservedAt: string | null;
+  // Settlement adapter execution and the exact terms the buyer echoes when funding (see packages/settlement).
+  execution?: 'LIVE' | 'MOCK'; terms?: unknown; txs?: { kind: string; txHash: string; status: string }[] };
 export type Evidence = { evidenceId: string; sha256: string; sizeBytes: number; merchantOrderId: string; submittedAt: string };
 export type Verification = { verdict: 'PASS' | 'FAIL' | 'INCONCLUSIVE'; execution: 'APP_WORKER_DKIM' | 'MANUAL' | 'CRE_SIMULATION' | 'MOCK';
   reviewedBy?: string; criteria: { id: string; expected: string; observed: string | null; result: 'PASS' | 'FAIL' | 'UNKNOWN' }[];
@@ -80,7 +85,8 @@ export const planSchema = z.strictObject({ id, actor: actorSchema, command: comm
   effectHash: z.string().regex(/^[a-f0-9]{64}$/), controlVersion: z.number().int().nullable(), expiresAt: z.iso.datetime() });
 export type Plan = z.infer<typeof planSchema>;
 export const receiptSchema = z.strictObject({ operationId: id, actorId: id,
-  command: z.enum(['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'review_evidence']),
+  command: z.enum(['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'review_evidence', 'fund_escrow',
+    'request_refund', 'authorize_refund']),
   effectHash: z.string().regex(/^[a-f0-9]{64}$/), status: z.literal('SUCCEEDED'), orderId: id, createdAt: z.iso.datetime() });
 export type Receipt = z.infer<typeof receiptSchema>;
 export const commandDescriptions: Record<Command['command'], { role: Actor['role']; path: string; meaning: string }> = {
@@ -88,6 +94,9 @@ export const commandDescriptions: Record<Command['command'], { role: Actor['role
   claim: { role: 'FILLER', path: '/v1/orders/:id/claims', meaning: 'Reserve one unfunded intent; no money moves.' },
   register_purchase: { role: 'FILLER', path: '/v1/orders/:id/purchase-attempts', meaning: 'Record an obligation before actor-local checkout; registration is not placement.' },
   submit_evidence: { role: 'FILLER', path: '/v1/orders/:id/evidence', meaning: 'Bind an uploaded order-confirmation email to the purchase and queue DKIM verification; acceptance is not proof.' },
+  fund_escrow: { role: 'BUYER', path: '/v1/orders/:id/funding', meaning: 'Lock the quoted escrow amount to the claimed filler via the Masumi node; pending until observed on chain.' },
+  request_refund: { role: 'BUYER', path: '/v1/orders/:id/refund-requests', meaning: 'Ask the escrow for a refund before the result deadline; the filler may authorize it or it becomes a dispute.' },
+  authorize_refund: { role: 'FILLER', path: '/v1/orders/:id/refund-authorizations', meaning: 'Filler agrees to return a requested refund to the buyer.' },
   review_evidence: { role: 'BUYER', path: '/v1/orders/:id/evidence-reviews', meaning: 'Manually approve or reject evidence that did not pass automatic verification; approval allows the result to be submitted.' },
 };
 export const integration = {
@@ -122,7 +131,7 @@ export const controlSchema = z.strictObject({
     z.strictObject({ key: z.literal('verification'), state: factState, sourceType, value: z.unknown() }),
     z.strictObject({ key: z.literal('settlement'), state: factState, sourceType, value: z.unknown() }),
   ])),
-  exposure: z.array(z.strictObject({ owner: id, assetId: assetIdFormat, units: amount, kind: z.literal('FIXTURE_LOCKED') })),
+  exposure: z.array(z.strictObject({ owner: id, assetId: assetIdFormat, units: amount, kind: z.enum(['FIXTURE_LOCKED', 'ESCROW_LOCKED']) })),
   obligations: z.array(z.strictObject({ type: z.enum(['FUND_ESCROW', 'PLACE_ORDER', 'RECONCILE_PURCHASE', 'SUBMIT_EVIDENCE', 'VERIFY_EVIDENCE',
     'REVIEW_EVIDENCE', 'SUBMIT_RESULT', 'MONITOR_DISPUTE_WINDOW', 'REQUEST_REFUND', 'AUTHORIZE_REFUND', 'COLLECT']),
     owner: id.nullable(), operationId: id.optional() })),
@@ -154,7 +163,7 @@ export function capabilities() {
     contractVersion: '0.2.0', schemaHash: hash(z.toJSONSchema(commandSchema)), integration,
     merchants: [{ id: 'amazon-in', environment: 'LIVE', checkout: 'HUMAN_ASSISTED', verifier: 'APP_WORKER_DKIM',
       tested: 'SYNTHETIC_EMAILS_AND_ONE_REVOKED_KEY_EMAIL_ONLY' }],
-    commands: ['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'review_evidence'],
+    commands: ['create_intent', 'claim', 'register_purchase', 'submit_evidence', 'review_evidence', 'fund_escrow', 'request_refund', 'authorize_refund'],
     configured: true, tested: false, availableNow: true,
     scope: 'LOCAL_CONTROL_CONTRACT_ONLY',
     blockers: ['LIVE_FUNDING_UNVALIDATED', 'LIVE_DKIM_PASS_UNVERIFIED', 'MERCHANT_NONCE_IN_SHIP_TO_UNVERIFIED', 'CRE_NOT_CONNECTED',

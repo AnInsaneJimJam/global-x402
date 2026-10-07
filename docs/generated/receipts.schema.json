@@ -21,7 +21,10 @@
         "claim",
         "register_purchase",
         "submit_evidence",
-        "review_evidence"
+        "review_evidence",
+        "fund_escrow",
+        "request_refund",
+        "authorize_refund"
       ]
     },
     "effectHash": {
