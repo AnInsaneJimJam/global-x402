@@ -10,7 +10,7 @@ import type { JobHandlers } from './index.js';
 
 type Deps = { adapter: SettlementAdapter; agentIdentifier: string; now?: () => Date; pollMs?: number };
 const TERMINAL = new Set(['PAID', 'REFUNDED']);
-// Masumi on-chain state → application settlement state (docs/02 lifecycle). Unknown states keep the last value.
+// Masumi on-chain state → application settlement state. Unknown states keep the last value.
 const SETTLEMENT: Record<string, Settlement['state']> = {
   ResultSubmitted: 'DISPUTE_WINDOW', WithdrawAuthorized: 'SETTLEMENT_PENDING', Withdrawn: 'PAID',
   RefundRequested: 'REFUND_PENDING', RefundAuthorized: 'REFUND_PENDING', RefundWithdrawn: 'REFUNDED', Disputed: 'DISPUTED',

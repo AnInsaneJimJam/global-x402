@@ -75,6 +75,6 @@ You may cancel the Amazon order once the take is done (or let it deliver). Our s
 | `ESCROW_ABOVE_CAP` | Raise `MAX_ESCROW_BASE_UNITS` (default 50 tUSDM). |
 | `PAY_BY_TOO_CLOSE` | Fund within ~8 min of claiming; otherwise re-post the order. |
 | Funding stays PENDING | Purchasing wallet lacks tUSDM/tADA, or the node's batch job is still running (30 s cycles). Check `node infra/masumi/manage.mjs status`. |
-| Verification INCONCLUSIVE on a real email | Run `node --import tsx scripts/check-eml.ts <file>`; DKIM key fetch or a layout change. The buyer can approve manually (labelled MANUAL). |
+| Verification INCONCLUSIVE on a real email | Usually a DKIM key fetch failure or an email layout change; check the worker log. The buyer can approve manually (labelled MANUAL). |
 | Dashboard blank at `/` | Run `npm run build:web`, then restart `npm run dev`. |
 | *Connect as filler* rejected | Use `DEV_FILLER_TOKEN` from `.env`; the API must be running. |

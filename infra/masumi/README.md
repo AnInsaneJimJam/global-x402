@@ -203,6 +203,6 @@ must be investigated locally with redaction rather than enabling raw persistent 
 
 A1 is complete only when a fresh teammate follows this runbook and sees funded
 wallets, the actual asset/decimals are recorded, and the filler registration has
-confirmed. Record all observations in `docs/integration-manifest.md` with UTC time.
+confirmed. Note the observations with UTC time.
 A2 then measures lock/result/collection/refund/deadline paths, fees and signers.
 No A1 source value replaces that live gate.

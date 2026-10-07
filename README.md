@@ -126,7 +126,6 @@ npm run typecheck
 
 ## Further reading
 
-- [Product spec](docs/01-product-spec.md) and [architecture](docs/02-architecture.md)
-- [Proof and settlement](docs/03-proof-and-settlement.md)
-- [How the agents work](docs/07-agent-system.md)
+- [Demo runbook](docs/DEMO.md) and [demo script](docs/DEMO-SCRIPT.md)
 - [CRE workflow](workflows/cre-verify/verify-order/README.md)
+- [Masumi node setup](infra/masumi/README.md)
