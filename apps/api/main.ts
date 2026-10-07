@@ -18,5 +18,5 @@ const sessions = new Map<string, Actor>([
 const app = createApp(new Procurement(store), sessions);
 app.addHook('onClose', async () => store.close());
 await app.listen({ host: '127.0.0.1', port: Number(process.env.PORT ?? 3000) });
-console.log('Local control API running on localhost. All payment, merchant and verifier layers are MOCK.');
+console.log('API and dashboard on http://127.0.0.1:' + (process.env.PORT ?? 3000) + ' (per-order labels show LIVE or MOCK for payment, merchant and verifier).');
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, async () => { await app.close(); });
