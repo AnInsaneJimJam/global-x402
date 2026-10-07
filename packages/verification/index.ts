@@ -29,10 +29,6 @@ function headerBlock(raw: Buffer) {
 }
 const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 const hasToken = (text: string, token: string) => normalize(text).split(' ').includes(normalize(token));
-const wordPrefix = (observed: string, expected: string) => {
-  const seen = normalize(observed).split(' ').filter(Boolean), want = normalize(expected).split(' ');
-  return seen.length > 0 && seen.length <= want.length && seen.every((word, n) => word === want[n]);
-};
 function noKey(): never { throw Object.assign(new Error('no key'), { code: 'ENOTFOUND' }); }
 
 // Pure check of an order-confirmation email against the accepted order. No signing authority,
@@ -95,9 +91,12 @@ export async function verifyOrderEmail(i: {
     // the buyer's stored recipient as far as the merchant email shows it. Empty expectations never pass.
     check('NONCE', e.nonce, facts.recipientName === null || !e.nonce ? null : hasToken(facts.recipientName, e.nonce) ? e.nonce : 'absent',
       !!e.nonce && !!facts.recipientName && hasToken(facts.recipientName, e.nonce)),
-    // Merchants may show only the leading word(s) of the name; those must be the start of "<nonce> <name>".
-    check('RECIPIENT_NAME', e.recipientName, e.recipientName ? facts.recipientName : null,
-      !!e.recipientName && facts.recipientName !== null && wordPrefix(facts.recipientName, e.recipientName)),
+    // Full-name merchants: exact match. First-word merchants (Amazon.in): the visible word must be exactly the
+    // first word of "<nonce> <name>", i.e. the nonce; the buyer's name itself is not visible there (documented limit).
+    check('RECIPIENT_NAME', i.merchant.nameDisplay === 'firstWord' ? e.recipientName.split(' ')[0] ?? '' : e.recipientName,
+      e.recipientName ? facts.recipientName : null, !!e.recipientName && facts.recipientName !== null &&
+      (i.merchant.nameDisplay === 'firstWord' ? normalize(facts.recipientName) === normalize(e.recipientName.split(' ')[0] ?? '')
+        : normalize(facts.recipientName) === normalize(e.recipientName))),
     same('RECIPIENT_CITY', e.recipientCity, facts.recipientCity),
     same('RECIPIENT_REGION', e.recipientRegion, facts.recipientRegion),
     // Exactly one purchased line, and it must be the accepted item exactly (no substring: "X (Pack of 24)" ≠ "X").

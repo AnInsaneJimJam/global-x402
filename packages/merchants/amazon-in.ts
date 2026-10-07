@@ -7,6 +7,7 @@ import { toMinor } from './index.js';
 export const amazonIn: MerchantConfig = {
   id: 'amazon-in',
   dkimDomains: ['amazon.in'],
+  nameDisplay: 'firstWord',
   extract(text) {
     const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
     const after = (label: string) => lines.flatMap((line, n) => line === label && lines[n + 1] ? [lines[n + 1]!] : []);

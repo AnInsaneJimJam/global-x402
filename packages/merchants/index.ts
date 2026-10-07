@@ -15,6 +15,8 @@ export type ExtractedOrder = {
 export type MerchantConfig = {
   id: string;
   dkimDomains: readonly string[];
+  // How the confirmation shows the recipient name: the full name (default) or only its first word (Amazon.in).
+  nameDisplay?: 'full' | 'firstWord';
   extract(text: string): ExtractedOrder;
 };
 
