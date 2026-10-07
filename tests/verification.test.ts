@@ -58,7 +58,7 @@ test('genuine email with wrong order facts fails the matching criterion', async 
     ['Coca-Cola Original 330ml x 1', 'Coca-Cola Original 330ml (Pack of 24) x 1', 'ITEM'],
     // Item named only in a recommendation, nonce only in a gift message, extra item line.
     ['Item: Coca-Cola Original 330ml x 1', 'Item: Pepsi 330ml x 1\r\nCustomers also bought: Coca-Cola Original 330ml', 'ITEM'],
-    ['Ship to: Alice Doe GOB-7F3K,', 'Gift message: GOB-7F3K\r\nShip to: Mallory,', 'NONCE'],
+    ['Ship to: GOB-7F3K Alice Doe,', 'Gift message: GOB-7F3K\r\nShip to: Mallory,', 'NONCE'],
     ['Order Total:', 'Item: Coca-Cola Original 330ml x 1\r\nOrder Total:', 'ITEM'],
   ];
   const body = orderEmail().split('\r\n\r\n')[1]!;

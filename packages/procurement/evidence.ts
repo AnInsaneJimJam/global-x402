@@ -48,8 +48,9 @@ export async function assignment(store: Store, actor: Actor, orderId: string) {
     orderId: order.id, merchantId: order.intent.merchantId, sku: order.intent.sku, itemTitle: order.intent.itemTitle ?? null,
     quantity: order.intent.quantity, currency: order.intent.currency, maximumChargeMinor: order.intent.fiatMinor,
     nonce: order.orderNonce,
-    recipient: { ...recipient, name: `${recipient.name} ${order.orderNonce}` },
-    instructions: 'Order exactly this item and quantity from your own account, ship to this recipient using the name exactly as shown (including the GOB code), then upload the original confirmation email (.eml).',
+    // Amazon.in shows only the first word of the name in its confirmation, so the code goes first.
+    recipient: { ...recipient, name: `${order.orderNonce} ${recipient.name}` },
+    instructions: 'Order exactly this item and quantity from your own account, ship to this recipient using the name exactly as shown, starting with the GOB code, then upload the original confirmation email (.eml).',
   };
 }
 
