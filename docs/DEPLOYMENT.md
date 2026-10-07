@@ -3,11 +3,26 @@
 ## Status and scope
 
 Deployment preparation lives on `codex/railway-vercel-deployment`, based on master `12183ae`.
-The deployment has not yet been published. Railway authentication is available locally, but a
-new project, refreshed CLI logins and hosted secrets still need to be configured.
-The owner selected **free credits only; stop before paid usage**. Railway billing/limit
-queries returned UNAUTHORIZED and Vercel CLI reported Logged out. Do not provision
-running services until credit availability and an enforceable spending cap are verified.
+Frontend and API published on 2026-10-07:
+
+- Frontend: https://ex402.vercel.app (public HTTP 200 verified).
+- API: https://global-x402-production.up.railway.app.
+- Railway project: `invigorating-miracle`, ID `a6fa62b6-a866-4355-b8e1-ebe12ddd873d`.
+- API service: `global-x402`, ID `13a24010-49ee-49a6-8b28-deb4c15b8cd8`.
+- App Postgres provisioned, persistent volume ready.
+- Direct API health, Vercel-proxied health, and public orders response verified.
+- Vercel deployed the prebuilt static assets from this branch via `/tmp/ex402`;
+  GitHub auto-deploy for this Vercel project is not configured yet.
+- Actor tokens were generated privately and saved to ignored `.local/hosted-app.env`.
+  Values are never included here. Do not publish this file.
+- Worker/Masumi services and authenticated CRE simulation are **not yet deployed**.
+  Full hosted settlement requires the existing node database/wallet cutover and scoped
+  credentials, plus CRE headless authentication. Public site/API readiness does not
+  imply live escrow execution.
+
+The owner initially chose free-only usage and later explicitly instructed to deploy
+without the spending-limit prerequisite. No paid plan upgrade was performed.
+
 This is the Preprod MVP: operator-held test wallets, bearer-token actor authentication,
 verified order placement, and CRE local simulation. Hosting does not turn simulation into
 Chainlink DON execution or change the payout condition to delivery.
