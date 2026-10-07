@@ -17,7 +17,8 @@
     "contracts:check": "node --import tsx scripts/generate-contracts.ts --check",
     "filler": "node --env-file-if-exists=.env --import tsx examples/filler-agent/main.ts",
     "masumi:setup": "node --env-file-if-exists=.env --import tsx scripts/masumi-setup.ts",
-    "buyer": "node --env-file-if-exists=.env --import tsx examples/buyer-agent/main.ts"
+    "buyer": "node --env-file-if-exists=.env --import tsx examples/buyer-agent/main.ts",
+    "preview": "node --env-file-if-exists=.env --import tsx scripts/preview.ts"
   },
   "dependencies": {
     "fastify": "5.12.5",
