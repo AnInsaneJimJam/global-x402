@@ -63,6 +63,9 @@ export class ControlClient {
     return await this.request(`/v1/orders/${encodeURIComponent(orderId)}/evidence-uploads`, 'POST', undefined, undefined,
       { type: 'message/rfc822', bytes }) as { evidenceId: string; sha256: string; sizeBytes: number };
   }
+  async escrowTerms(orderId: string) {
+    return await this.request(`/v1/orders/${encodeURIComponent(orderId)}/escrow-terms`) as { orderId: string; grossBaseUnits: string; assetId: string; terms: unknown };
+  }
   async putRecipient(ref: string, recipient: unknown) {
     return await this.request(`/v1/recipients/${encodeURIComponent(ref)}`, 'PUT', recipient) as { ref: string; stored: boolean };
   }

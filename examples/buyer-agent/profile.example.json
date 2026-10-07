@@ -1,0 +1,10 @@
+{
+  "recipientRef": "home",
+  "recipient": { "name": "Your Name", "line1": "Street address", "city": "City", "state": "State", "postalCode": "000000", "country": "IN" },
+  "policy": {
+    "allowedMerchants": ["amazon-in"],
+    "maxEscrowBaseUnits": "50000000",
+    "assetId": "16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde.0014df10745553444d",
+    "minResultWindowMinutes": 20
+  }
+}

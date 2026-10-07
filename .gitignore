@@ -12,3 +12,4 @@ coverage/
 !fixtures/synthetic/**/*.eml
 # Real delivery address for the recorded run
 examples/buyer-agent/purchase.json
+examples/buyer-agent/profile.json
