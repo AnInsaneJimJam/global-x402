@@ -107,7 +107,7 @@ claude mcp add global-order-book-buyer --scope user \
 cp -R examples/buyer-agent/skill/order-for-me ~/.claude/skills/
 ```
 
-Start a new Claude Code session and just ask: *"order me <exact Amazon.in product title>, ₹<total including delivery>"*. The agent confirms with you, posts the order, funds the escrow when a filler claims it, and keeps you posted until the filler is paid.
+Start a new Claude Code session and just ask: *"order me <link of the product>"*. The agent confirms with you, posts the order, funds the escrow when a filler claims it, and keeps you posted until the filler is paid.
 
 ### Tests
 
@@ -115,17 +115,3 @@ Start a new Claude Code session and just ask: *"order me <exact Amazon.in produc
 npm test         # spins up a throwaway Postgres and runs the suite
 npm run typecheck
 ```
-
-## Recording a demo
-
-[docs/DEMO.md](docs/DEMO.md) has the full shot list, timings and troubleshooting. Timings, counted from when the filler claims:
-
-- **5–12 min:** the escrow lock confirms. Only buy after this.
-- **Within 35 min:** upload the email.
-- **About 70 min:** the payout lands.
-
-## Further reading
-
-- [Demo runbook](docs/DEMO.md) and [demo script](docs/DEMO-SCRIPT.md)
-- [CRE workflow](workflows/cre-verify/verify-order/README.md)
-- [Masumi node setup](infra/masumi/README.md)
