@@ -10,3 +10,5 @@ coverage/
 # Real merchant emails contain personal data; only synthetic fixtures may be committed.
 *.eml
 !fixtures/synthetic/**/*.eml
+# Real delivery address for the recorded run
+examples/buyer-agent/purchase.json
