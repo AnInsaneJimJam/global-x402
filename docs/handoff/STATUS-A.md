@@ -7,7 +7,7 @@ Update at the end of every session. Newest entry on top. Keep it short; link PRs
 | Task | State | Notes / link |
 |---|---|---|
 | A0 Step 0 foundation | DONE / MERGED | [PR #1](https://github.com/AnInsaneJimJam/global-x402/pull/1), merge `22d6d7b`: numbered migrations, command handlers, v0.2 types, transactional outbox/worker; 18/18 tests pass. |
-| A1 Masumi node | PARTIAL — SEEDED; FUNDING PENDING | [Runbook](../../infra/masumi/README.md): pinned node/tooling overlay healthy; native V2 Preprod source and two wallets seeded. Observed tUSDM registry decimals = 6. Funded balances and registration remain pending. |
+| A1 Masumi node | PARTIAL — SEEDED; FUNDING PENDING | [Draft PR #4](https://github.com/AnInsaneJimJam/global-x402/pull/4), commit `07ebb73`. [Runbook](../../infra/masumi/README.md): pinned node/tooling overlay healthy; native V2 Preprod source and two wallets seeded. Observed tUSDM registry decimals = 6. Funded balances and registration remain pending. |
 | A2 Preprod lifecycle spike | NOT STARTED | Gate for A4–A5 |
 | A3 SettlementAdapter | NOT STARTED | |
 | A4 Quote + funding | NOT STARTED | |
