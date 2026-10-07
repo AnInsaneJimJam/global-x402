@@ -1,41 +1,25 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Global Order Book</title>
-  <link rel="stylesheet" href="/app.css">
-</head>
-<body>
-  <header class="top">
-    <div class="brand"><span class="logo">◎</span> Global Order Book <small>agent commerce · Cardano escrow</small></div>
-    <div class="labels" id="labels"></div>
-    <div class="session">
-      <select id="persona" aria-label="Persona"><option value="buyer">Buyer</option><option value="filler">Filler</option></select>
-      <input id="token" type="password" autocomplete="off" placeholder="dev token" aria-label="Dev token">
-      <button id="connect">Connect</button>
-    </div>
-  </header>
-  <p id="error" role="alert"></p>
-  <main>
-    <section class="list">
-      <div class="tabs"><button id="open">Open orders</button><button id="work" class="active">My orders</button></div>
-      <ul id="orders"></ul>
-    </section>
-    <section class="detail" id="detail" hidden>
-      <div class="head">
-        <div><div class="muted" id="orderId"></div><h1 id="title"></h1><div id="summary" class="muted"></div></div>
-        <div class="status" id="status"></div>
-      </div>
-      <div class="grid">
-        <div class="card"><h2>Lifecycle</h2><ol class="timeline" id="timeline"></ol></div>
-        <div class="card"><h2>Economics</h2><dl id="economics"></dl><h2>Escrow</h2><dl id="escrow"></dl><ul class="txs" id="txs"></ul></div>
-      </div>
-      <div class="card"><h2>Proof of order placement <span class="muted" id="proofSource"></span></h2><table id="criteria"></table></div>
-      <div class="card actions"><h2>Actions</h2><div id="actions"></div><p class="muted" id="obligations"></p></div>
-    </section>
-    <section class="empty" id="empty"><h2>Pick an order</h2><p>Connect as buyer or filler with a dev token, then choose an order on the left. Everything here is the same control view the agents use.</p></section>
-  </main>
-  <script src="/app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090909" />
+    <meta
+      name="description"
+      content="Global Order Book connects purchase intents to fillers. Explore the local x402 procurement workspace for buyer and filler agents."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      rel="preload"
+      href="/fonts/geist.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <title>Global Order Book — Intent to execution.</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

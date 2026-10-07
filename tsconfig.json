@@ -5,5 +5,6 @@
     "esModuleInterop": true, "skipLibCheck": true, "resolveJsonModule": true,
     "outDir": "dist", "types": ["node"]
   },
+  "exclude": ["apps/web"],
   "include": ["apps/**/*.ts", "packages/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "examples/**/*.ts", "fixtures/**/*.ts"]
 }

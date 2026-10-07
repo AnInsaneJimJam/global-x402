@@ -71,7 +71,7 @@ const tools = {
       await wallet.fund(t);
       await client.commit({ command: 'fund_escrow', orderId: a.order_id, selfFunded: true }, `fund-${a.order_id}`);
       return { submitted: `Lock of ${Number(grossBaseUnits) / 1e6} tUSDM submitted from the buyer wallet`,
-        next: 'Confirmation takes 1–3 minutes on Preprod; then the filler can place the order.' };
+        next: 'Preprod confirmation plus Masumi indexing takes about 5–12 minutes; then the filler sees the delivery details and places the order.' };
     },
   },
   review_evidence: {

@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web/tsconfig.json",
     "test": "bash scripts/test-local.sh",
     "dev": "node --env-file-if-exists=.env --import tsx apps/api/main.ts",
     "worker": "node --env-file-if-exists=.env --import tsx apps/worker/main.ts",
@@ -19,20 +19,28 @@
     "masumi:setup": "node --env-file-if-exists=.env --import tsx scripts/masumi-setup.ts",
     "buyer": "node --env-file-if-exists=.env --import tsx examples/buyer-agent/main.ts",
     "preview": "node --env-file-if-exists=.env --import tsx scripts/preview.ts",
-    "spike": "node --env-file-if-exists=.env --import tsx scripts/live-spike.ts"
+    "spike": "node --env-file-if-exists=.env --import tsx scripts/live-spike.ts",
+    "dev:web": "vite apps/web --config apps/web/vite.config.ts",
+    "build:web": "vite build apps/web --config apps/web/vite.config.ts"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.5",
     "fastify": "5.12.5",
     "mailauth": "7.1.1",
     "mailparser": "3.9.36",
     "pg": "8.23.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/mailparser": "3.9.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "tsx": "4.23.15",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vite": "^8.3.3"
   }
 }

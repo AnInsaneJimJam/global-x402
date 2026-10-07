@@ -40,9 +40,7 @@ test('HTTP uses the shared handlers, rejects untyped commands, and advertises mo
     const missingKey = await app.inject({ method: 'POST', url: `/v1/orders/${orderId}/claims`, headers: { authorization: 'Bearer fixture-filler' }, payload: { planId: response.json().id, operationId: 'claim-http' } });
     assert.equal(missingKey.statusCode, 400);
     assert.equal((await app.inject({ method: 'POST', url: '/v1/internal/funding', payload: {} })).statusCode, 404);
-    const dashboard = await app.inject('/');
-    assert.equal(dashboard.statusCode, 200);
-    assert.match(String(dashboard.headers['content-security-policy']), /default-src 'self'/);
-    assert.match((await app.inject('/app.js')).body, /textContent/);
+    assert.deepEqual((await app.inject({ url: '/v1/session', headers: { authorization: 'Bearer fixture-filler' } })).json().role, 'FILLER');
+    assert.equal((await app.inject('/v1/session')).statusCode, 401);
   } finally { await app.close(); await c.close(); }
 });

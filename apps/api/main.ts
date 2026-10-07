@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import fastifyStatic from '@fastify/static';
 import { Store } from '../../packages/procurement/store.js';
 import { Procurement } from '../../packages/procurement/service.js';
 import type { Actor } from '../../packages/contracts/index.js';
@@ -16,7 +19,12 @@ const sessions = new Map<string, Actor>([
   [fillerToken, { id: 'dev-filler', role: 'FILLER' }],
 ]);
 const app = createApp(new Procurement(store), sessions);
+// Dashboard (apps/web, built with `npm run build:web`) served from the same origin with a strict CSP.
+const webRoot = fileURLToPath(new URL('../web/dist/', import.meta.url));
+const csp = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'";
+if (existsSync(webRoot)) await app.register(fastifyStatic, { root: webRoot, setHeaders: reply => {
+  reply.header('content-security-policy', csp); reply.header('x-content-type-options', 'nosniff'); } });
 app.addHook('onClose', async () => store.close());
 await app.listen({ host: '127.0.0.1', port: Number(process.env.PORT ?? 3000) });
-console.log('API and dashboard on http://127.0.0.1:' + (process.env.PORT ?? 3000) + ' (per-order labels show LIVE or MOCK for payment, merchant and verifier).');
+console.log((existsSync(webRoot) ? 'API and dashboard' : 'API (run `npm run build:web` for the dashboard)') + ' on http://127.0.0.1:' + (process.env.PORT ?? 3000) + ' (per-order labels show LIVE or MOCK for payment, merchant and verifier).');
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, async () => { await app.close(); });
